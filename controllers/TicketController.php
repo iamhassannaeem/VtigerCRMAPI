@@ -153,15 +153,43 @@ class TicketController
                 return;
             }
 
-            // Prepare data
+            // Prepare data - all form fields
             $data = [
+                // Basic fields
                 'title' => $input['title'],
                 'description' => $input['description'] ?? '',
+                'solution' => $input['solution'] ?? '',
+                
+                // Standard ticket fields
                 'priority' => $input['priority'] ?? 'Normal',
                 'category' => $input['category'] ?? '',
-                'account_id' => $input['account_id'] ?? null,
-                'contact_id' => $input['contact_id'] ?? null,
-                'assigned_to' => $input['assigned_to'] ?? $userId
+                'status' => $input['status'] ?? 'Open',
+                'severity' => $input['severity'] ?? '',
+                
+                // Relationships
+                'account_id' => $input['account_id'] ?? null,  // Organization
+                'contact_id' => $input['contact_id'] ?? null,  // Contact
+                'assigned_to' => $input['assigned_to'] ?? $userId,
+                
+                // Time tracking
+                'hours' => $input['hours'] ?? null,
+                'days' => $input['days'] ?? null,
+                'total_time_minutes' => $input['total_time_minutes'] ?? null,
+                
+                // Custom fields
+                'organization_priority' => $input['organization_priority'] ?? '',  // cf_867
+                'services_issue' => $input['services_issue'] ?? '',  // cf_869
+                'issue_end' => $input['issue_end'] ?? '',  // cf_871
+                'end_time' => $input['end_time'] ?? null,  // cf_873 (time field)
+                'closing_time' => $input['closing_time'] ?? '',  // cf_879
+                
+                // Checkboxes (1 = checked, 0 = unchecked)
+                'send_on_confirmation' => $input['send_on_confirmation'] ?? '0',  // cf_875
+                'email_sms_assigned_to' => $input['email_sms_assigned_to'] ?? '0',  // cf_877
+                'email_sms_to_customer' => $input['email_sms_to_customer'] ?? '0',  // cf_897
+                
+                // Additional field
+                'from_portal' => $input['from_portal'] ?? '0'
             ];
 
             // Create ticket
@@ -286,4 +314,6 @@ class TicketController
         return $payload;
     }
 }
+
+
 

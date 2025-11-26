@@ -19,12 +19,31 @@ curl http://localhost/vtiger-api/public/
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
+| **Authentication** ||||
 | `/auth/login` | POST | ❌ | Login |
+| `/auth/verify` | GET | ✅ | Verify token |
+| **Dashboard** ||||
 | `/dashboard` | GET | ✅ | Statistics |
+| **Tickets** ||||
 | `/tickets` | GET | ✅ | List tickets |
 | `/tickets/{id}` | GET | ✅ | Ticket details |
 | `/tickets` | POST | ✅ | Create ticket |
 | `/tickets/{id}/comments` | POST | ✅ | Add comment |
+| **Organizations** ||||
+| `/organizations` | GET | ✅ | List organizations |
+| `/organizations/{id}` | GET | ✅ | Organization details |
+| **Contacts** ||||
+| `/contacts` | GET | ✅ | List contacts |
+| `/contacts/{id}` | GET | ✅ | Contact details |
+| **Picklists** ||||
+| `/picklists/priorities` | GET | ✅ | Ticket priorities |
+| `/picklists/services-issue` | GET | ✅ | Services issue options |
+| `/picklists/statuses` | GET | ✅ | Ticket statuses |
+| `/picklists/users` | GET | ✅ | Active users |
+| `/picklists/issue-end` | GET | ✅ | Issue end options |
+| `/picklists/categories` | GET | ✅ | Ticket categories |
+| `/picklists/severities` | GET | ✅ | Ticket severities |
+| **Profile** ||||
 | `/me` | GET | ✅ | User profile |
 
 ## 🔑 Authentication
@@ -107,19 +126,44 @@ tail -f /var/log/apache2/error.log
 
 ## 📝 Common Queries
 
-### List open tickets
-```
+### Tickets
+```bash
+# List open tickets
 GET /tickets?status=Open&limit=10
-```
 
-### Search tickets
-```
+# Search tickets
 GET /tickets?search=email&limit=20
+
+# Filter by user (admin only)
+GET /tickets?assigned_to=5
 ```
 
-### Filter by user (admin only)
+### Organizations
+```bash
+# Search organizations
+GET /organizations?search=tech&limit=20
+
+# Filter by account type
+GET /organizations?account_type=Customer
 ```
-GET /tickets?assigned_to=5
+
+### Contacts
+```bash
+# Get contacts for specific organization
+GET /contacts?account_id=102
+
+# Search contacts
+GET /contacts?search=john
+```
+
+### Picklists
+```bash
+# Get dropdown options
+GET /picklists/priorities
+GET /picklists/statuses
+GET /picklists/users
+GET /picklists/services-issue
+GET /picklists/issue-end
 ```
 
 ## 🔒 Security
@@ -132,16 +176,16 @@ GET /tickets?assigned_to=5
 
 ## 📦 Files Created
 
-**Total: 32 files**
+**Total: 38 files**
 
 - 4 Config files
 - 2 Core files
 - 1 Helper file
-- 3 Models
-- 4 Controllers
+- 6 Models (User, Ticket, Comment, Organization, Contact, Picklist)
+- 7 Controllers (Auth, Dashboard, Ticket, Profile, Organization, Contact, Picklist)
 - 2 Public files
 - 3 Root files (.htaccess, .gitignore)
-- 8 Documentation files
+- 9 Documentation files
 - 1 Postman collection
 
 ## 🎯 HTTP Status Codes
@@ -156,14 +200,21 @@ GET /tickets?assigned_to=5
 ## 💾 Database Tables
 
 Main tables used:
-- `vtiger_users`
-- `vtiger_crmentity`
-- `vtiger_troubletickets`
-- `vtiger_ticketcf`
-- `vtiger_ticketcomments`
-- `vtiger_account`
-- `vtiger_contactdetails`
-- `vtiger_role`
+- `vtiger_users` - User accounts
+- `vtiger_crmentity` - Core entity table
+- `vtiger_crmentity_seq` - Entity ID sequence
+- `vtiger_troubletickets` - Tickets
+- `vtiger_ticketcf` - Ticket custom fields
+- `vtiger_ticketcomments` - Ticket comments
+- `vtiger_account` - Organizations/Accounts
+- `vtiger_contactdetails` - Contacts
+- `vtiger_role` - User roles
+- `vtiger_ticketpriorities` - Priority picklist
+- `vtiger_ticketstatus` - Status picklist
+- `vtiger_ticketcategories` - Category picklist
+- `vtiger_ticketseverities` - Severity picklist
+- `vtiger_cf_869` - Services Issue custom picklist
+- `vtiger_cf_871` - Issue End custom picklist
 
 ## 🧪 Testing
 
@@ -192,10 +243,11 @@ curl -X GET http://localhost/vtiger-api/public/dashboard \
 ## 📖 Documentation
 
 - `README.md` - Main docs
-- `API_EXAMPLES.md` - Examples
-- `DEPLOYMENT.md` - Deployment
-- `INSTALLATION.md` - Quick install
-- `PROJECT_STRUCTURE.md` - Architecture
+- `API_EXAMPLES.md` - Request/Response examples
+- `NEW_ENDPOINTS.md` - **NEW** Organizations, Contacts, Picklists docs
+- `DEPLOYMENT.md` - Deployment guide
+- `INSTALLATION.md` - Quick install guide
+- `PROJECT_STRUCTURE.md` - Architecture details
 - `COMPLETE_SUMMARY.md` - Full summary
 - `QUICK_REFERENCE.md` - This file
 
@@ -241,4 +293,6 @@ https://api.yourdomain.com/
 ---
 
 **Need help?** Check the full documentation in `README.md` or `COMPLETE_SUMMARY.md`
+
+
 

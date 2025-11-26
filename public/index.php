@@ -27,10 +27,16 @@ require_once __DIR__ . '/../helpers/JWT.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Ticket.php';
 require_once __DIR__ . '/../models/Comment.php';
+require_once __DIR__ . '/../models/Organization.php';
+require_once __DIR__ . '/../models/Contact.php';
+require_once __DIR__ . '/../models/Picklist.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/TicketController.php';
 require_once __DIR__ . '/../controllers/ProfileController.php';
+require_once __DIR__ . '/../controllers/OrganizationController.php';
+require_once __DIR__ . '/../controllers/ContactController.php';
+require_once __DIR__ . '/../controllers/PicklistController.php';
 
 // Initialize router
 $router = new Router();
@@ -81,6 +87,69 @@ $router->get('/me', function() {
     $controller->me();
 });
 
+// Organization Routes
+$router->get('/organizations', function() {
+    $controller = new OrganizationController();
+    $controller->index();
+});
+
+$router->get('/organizations/{id}', function($id) {
+    $controller = new OrganizationController();
+    $controller->show($id);
+});
+
+// Contact Routes
+$router->get('/contacts', function() {
+    $controller = new ContactController();
+    $controller->index();
+});
+
+$router->get('/contacts/{id}', function($id) {
+    $controller = new ContactController();
+    $controller->show($id);
+});
+
+// Picklist Routes
+$router->get('/picklists/priorities', function() {
+    $controller = new PicklistController();
+    $controller->priorities();
+});
+
+$router->get('/picklists/services-issue', function() {
+    $controller = new PicklistController();
+    $controller->servicesIssue();
+});
+
+$router->get('/picklists/statuses', function() {
+    $controller = new PicklistController();
+    $controller->statuses();
+});
+
+$router->get('/picklists/users', function() {
+    $controller = new PicklistController();
+    $controller->users();
+});
+
+$router->get('/picklists/issue-end', function() {
+    $controller = new PicklistController();
+    $controller->issueEnd();
+});
+
+$router->get('/picklists/categories', function() {
+    $controller = new PicklistController();
+    $controller->categories();
+});
+
+$router->get('/picklists/severities', function() {
+    $controller = new PicklistController();
+    $controller->severities();
+});
+
+$router->get('/picklists/organization-priority', function() {
+    $controller = new PicklistController();
+    $controller->organizationPriority();
+});
+
 // Health check route
 $router->get('/', function() {
     echo json_encode([
@@ -95,7 +164,19 @@ $router->get('/', function() {
             'GET /tickets/{id}' => 'Get ticket details',
             'POST /tickets' => 'Create new ticket',
             'POST /tickets/{id}/comments' => 'Add comment to ticket',
-            'GET /me' => 'Get user profile'
+            'GET /me' => 'Get user profile',
+            'GET /organizations' => 'List all organizations',
+            'GET /organizations/{id}' => 'Get organization details',
+            'GET /contacts' => 'List all contacts',
+            'GET /contacts/{id}' => 'Get contact details',
+            'GET /picklists/priorities' => 'Get ticket priorities',
+            'GET /picklists/services-issue' => 'Get services issue options',
+            'GET /picklists/statuses' => 'Get ticket statuses',
+            'GET /picklists/users' => 'Get active users',
+            'GET /picklists/issue-end' => 'Get issue end options',
+            'GET /picklists/categories' => 'Get ticket categories',
+            'GET /picklists/severities' => 'Get ticket severities',
+            'GET /picklists/organization-priority' => 'Get organization priority options'
         ]
     ]);
 });
@@ -132,4 +213,6 @@ try {
         'error' => $e->getMessage()
     ]);
 }
+
+
 

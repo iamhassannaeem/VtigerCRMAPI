@@ -173,7 +173,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Test Ticket from API\",\n  \"description\": \"This is a test ticket created via REST API\",\n  \"priority\": \"High\",\n  \"category\": \"Technical\",\n  \"account_id\": null,\n  \"assigned_to\": null\n}"
+              "raw": "{\n  \"title\": \"Email Configuration Problem\",\n  \"description\": \"Users are unable to send emails from the CRM system. Getting SMTP connection timeout error.\",\n  \"solution\": \"Updated SMTP server settings and tested successfully.\",\n  \"priority\": \"High\",\n  \"status\": \"Open\",\n  \"category\": \"Technical\",\n  \"severity\": \"Major\",\n  \"account_id\": 102,\n  \"contact_id\": 250,\n  \"assigned_to\": 5,\n  \"hours\": 3.5,\n  \"days\": 0.5,\n  \"organization_priority\": \"High\",\n  \"services_issue\": \"Email System\",\n  \"issue_end\": \"Resolved\",\n  \"email_sms_to_customer\": \"1\",\n  \"send_on_confirmation\": \"1\",\n  \"email_sms_assigned_to\": \"1\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/tickets",
@@ -232,6 +232,271 @@
       ]
     },
     {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "List All Organizations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organizations?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["organizations"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "company",
+                  "disabled": true
+                },
+                {
+                  "key": "account_type",
+                  "value": "Customer",
+                  "disabled": true
+                },
+                {
+                  "key": "industry",
+                  "value": "Technology",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Organization by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organizations/123",
+              "host": ["{{base_url}}"],
+              "path": ["organizations", "123"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contacts",
+      "item": [
+        {
+          "name": "List All Contacts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/contacts?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["contacts"],
+              "query": [
+                {
+                  "key": "account_id",
+                  "value": "123",
+                  "disabled": true,
+                  "description": "Filter by organization ID"
+                },
+                {
+                  "key": "search",
+                  "value": "john",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Contact by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/contacts/456",
+              "host": ["{{base_url}}"],
+              "path": ["contacts", "456"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Picklists",
+      "item": [
+        {
+          "name": "Get Priorities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/priorities",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "priorities"]
+            }
+          }
+        },
+        {
+          "name": "Get Services Issue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/services-issue",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "services-issue"]
+            }
+          }
+        },
+        {
+          "name": "Get Statuses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/statuses",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "statuses"]
+            }
+          }
+        },
+        {
+          "name": "Get Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/users",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "users"]
+            }
+          }
+        },
+        {
+          "name": "Get Issue End",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/issue-end",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "issue-end"]
+            }
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/categories",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Severities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/severities",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "severities"]
+            }
+          }
+        },
+        {
+          "name": "Get Organization Priority",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/picklists/organization-priority",
+              "host": ["{{base_url}}"],
+              "path": ["picklists", "organization-priority"]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Health Check",
       "request": {
         "method": "GET",
@@ -245,4 +510,6 @@
     }
   ]
 }
+
+
 

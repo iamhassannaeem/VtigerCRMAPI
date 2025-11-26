@@ -7,8 +7,11 @@ A modern, lightweight REST API built with pure PHP 8+ for Vtiger CRM. This API p
 - **JWT Authentication** (HS256)
 - **Role-based Access Control** (Admin gets full access, users get only their assigned records)
 - **Ticket Management** (List, Create, View, Comment)
+- **Organization Management** (List, View, Search)
+- **Contact Management** (List, View, Filter by Organization)
 - **Dashboard Statistics**
 - **User Profile Management**
+- **Picklists/Dropdowns** (Priorities, Statuses, Users, Custom Fields)
 - **Pure PHP** (No frameworks)
 - **JSON Responses**
 
@@ -27,12 +30,18 @@ vtiger-crm-api/
 ├── models/
 │   ├── User.php          # User model
 │   ├── Ticket.php        # Ticket model
-│   └── Comment.php       # Comment model
+│   ├── Comment.php       # Comment model
+│   ├── Organization.php  # Organization/Account model
+│   ├── Contact.php       # Contact model
+│   └── Picklist.php      # Picklist/Dropdown model
 ├── controllers/
-│   ├── AuthController.php      # Authentication
-│   ├── DashboardController.php # Dashboard
-│   ├── TicketController.php    # Ticket management
-│   └── ProfileController.php   # User profile
+│   ├── AuthController.php         # Authentication
+│   ├── DashboardController.php    # Dashboard
+│   ├── TicketController.php       # Ticket management
+│   ├── ProfileController.php      # User profile
+│   ├── OrganizationController.php # Organization management
+│   ├── ContactController.php      # Contact management
+│   └── PicklistController.php     # Picklists/Dropdowns
 ├── public/
 │   ├── index.php         # Entry point
 │   └── .htaccess         # URL rewriting
@@ -386,6 +395,202 @@ GET /tickets?status=Open&limit=10&offset=0
 
 ---
 
+## 🏢 Organization Endpoints
+
+### 8. List Organizations
+
+**GET** `/organizations`
+
+**Query Parameters:**
+- `search` (optional): Search in organization name, email, phone, account number
+- `account_type` (optional): Filter by account type
+- `industry` (optional): Filter by industry
+- `limit` (optional, default: 50): Number of records per page
+- `offset` (optional, default: 0): Pagination offset
+
+**Example Request:**
+```
+GET /organizations?search=tech&limit=20
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "accountid": 102,
+      "account_no": "ACC001",
+      "accountname": "TechCorp Inc",
+      "phone": "+1 (555) 987-6543",
+      "email1": "contact@techcorp.com",
+      "website": "https://techcorp.com",
+      "account_type": "Customer",
+      "industry": "Technology",
+      "rating": "Active",
+      "employees": 250,
+      "assigned_to_name": "John Smith"
+    }
+  ]
+}
+```
+
+### 9. Get Organization by ID
+
+**GET** `/organizations/{id}`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "accountid": 102,
+    "accountname": "TechCorp Inc",
+    "phone": "+1 (555) 987-6543",
+    "email1": "contact@techcorp.com",
+    "website": "https://techcorp.com",
+    "bill_street": "123 Tech Street",
+    "bill_city": "San Francisco",
+    "bill_state": "California",
+    "bill_country": "USA",
+    "assigned_to_name": "John Smith",
+    "created_by_name": "Administrator User"
+  }
+}
+```
+
+---
+
+## 👥 Contact Endpoints
+
+### 10. List Contacts
+
+**GET** `/contacts`
+
+**Query Parameters:**
+- `account_id` (optional): **Filter contacts by organization ID**
+- `search` (optional): Search in contact name, email, phone
+- `limit` (optional, default: 50): Number of records per page
+- `offset` (optional, default: 0): Pagination offset
+
+**Example Request:**
+```
+GET /contacts?account_id=102&limit=20
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "count": 3,
+  "data": [
+    {
+      "contactid": 250,
+      "contact_no": "CON001",
+      "firstname": "Mike",
+      "lastname": "Johnson",
+      "full_name": "Mike Johnson",
+      "email": "mike.johnson@techcorp.com",
+      "phone": "+1 (555) 111-2222",
+      "mobile": "+1 (555) 333-4444",
+      "title": "IT Manager",
+      "department": "IT",
+      "accountid": 102,
+      "accountname": "TechCorp Inc",
+      "assigned_to_name": "Sarah Williams"
+    }
+  ]
+}
+```
+
+### 11. Get Contact by ID
+
+**GET** `/contacts/{id}`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "contactid": 250,
+    "firstname": "Mike",
+    "lastname": "Johnson",
+    "email": "mike.johnson@techcorp.com",
+    "phone": "+1 (555) 111-2222",
+    "mobile": "+1 (555) 333-4444",
+    "accountid": 102,
+    "accountname": "TechCorp Inc",
+    "assigned_to_name": "Sarah Williams"
+  }
+}
+```
+
+---
+
+## 📋 Picklist Endpoints
+
+All picklist endpoints return dropdown/select options for forms.
+
+### 12. Get Priorities
+**GET** `/picklists/priorities`
+
+Returns ticket priority options (Low, Normal, High, Urgent)
+
+### 13. Get Services Issue
+**GET** `/picklists/services-issue`
+
+Returns services issue options (custom field cf_869)
+
+### 14. Get Statuses
+**GET** `/picklists/statuses`
+
+Returns ticket status options (Open, In Progress, Wait For Response, Closed)
+
+### 15. Get Users
+**GET** `/picklists/users`
+
+Returns list of active users for assignment
+
+### 16. Get Issue End
+**GET** `/picklists/issue-end`
+
+Returns issue end options (custom field cf_871)
+
+### 17. Get Categories
+**GET** `/picklists/categories`
+
+Returns ticket category options
+
+### 18. Get Severities
+**GET** `/picklists/severities`
+
+Returns ticket severity options (Minor, Major, Feature, Critical)
+
+**Picklist Response Format:**
+```json
+{
+  "success": true,
+  "count": 4,
+  "data": [
+    {
+      "id": 1,
+      "value": "Low",
+      "color": "#00FF00",
+      "sortorderid": 0
+    },
+    {
+      "id": 2,
+      "value": "Normal",
+      "color": "#FFFF00",
+      "sortorderid": 1
+    }
+  ]
+}
+```
+
+---
+
 ## 🔒 Security Features
 
 - **JWT Token Authentication**: Secure token-based authentication
@@ -457,4 +662,6 @@ For issues or questions, please contact the development team.
 ## 📄 License
 
 This project is proprietary and confidential.
+
+
 

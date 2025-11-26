@@ -122,6 +122,9 @@ class Ticket
         try {
             $this->db->beginTransaction();
 
+            // Get next entity ID from sequence table (Vtiger standard)
+            $crmid = $this->getNextEntityId();
+
             // Get next ticket number
             $ticketNo = $this->getNextTicketNumber();
 
@@ -130,10 +133,11 @@ class Ticket
                          (crmid, smcreatorid, smownerid, modifiedby, setype, description, 
                           createdtime, modifiedtime, deleted, source, label)
                          VALUES 
-                         (NULL, ?, ?, ?, 'HelpDesk', ?, NOW(), NOW(), 0, 'CRM', ?)";
+                         (?, ?, ?, ?, 'HelpDesk', ?, NOW(), NOW(), 0, 'CRM', ?)";
 
             $assignedTo = $data['assigned_to'] ?? $userId;
             $this->db->execute($sqlEntity, [
+                $crmid,
                 $userId,
                 $assignedTo,
                 $userId,
@@ -141,13 +145,12 @@ class Ticket
                 $data['title']
             ]);
 
-            $crmid = $this->db->lastInsertId();
-
             // Insert into vtiger_troubletickets
             $sqlTicket = "INSERT INTO vtiger_troubletickets 
-                         (ticketid, ticket_no, title, priority, category, status, parent_id, contact_id)
+                         (ticketid, ticket_no, title, priority, category, status, severity, 
+                          parent_id, contact_id, solution, hours, days)
                          VALUES 
-                         (?, ?, ?, ?, ?, ?, ?, ?)";
+                         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             $this->db->execute($sqlTicket, [
                 $crmid,
@@ -155,14 +158,33 @@ class Ticket
                 $data['title'],
                 $data['priority'] ?? 'Normal',
                 $data['category'] ?? '',
-                'Open',
+                $data['status'] ?? 'Open',
+                $data['severity'] ?? '',
                 $data['account_id'] ?? null,
-                $data['contact_id'] ?? null
+                $data['contact_id'] ?? null,
+                $data['solution'] ?? '',
+                $data['hours'] ?? null,
+                $data['days'] ?? null
             ]);
 
-            // Insert into vtiger_ticketcf
-            $sqlCf = "INSERT INTO vtiger_ticketcf (ticketid) VALUES (?)";
-            $this->db->execute($sqlCf, [$crmid]);
+            // Insert into vtiger_ticketcf (custom fields table)
+            $sqlCf = "INSERT INTO vtiger_ticketcf 
+                     (ticketid, from_portal, cf_867, cf_869, cf_871, cf_873, cf_875, cf_877, cf_879, cf_897)
+                     VALUES 
+                     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            
+            $this->db->execute($sqlCf, [
+                $crmid,
+                $data['from_portal'] ?? '0',
+                $data['organization_priority'] ?? '',  // cf_867
+                $data['services_issue'] ?? '',  // cf_869
+                $data['issue_end'] ?? '',  // cf_871
+                $data['end_time'] ?? null,  // cf_873
+                $data['send_on_confirmation'] ?? '0',  // cf_875
+                $data['email_sms_assigned_to'] ?? '0',  // cf_877
+                $data['closing_time'] ?? '',  // cf_879
+                $data['email_sms_to_customer'] ?? '0'  // cf_897
+            ]);
 
             $this->db->commit();
 
@@ -175,6 +197,28 @@ class Ticket
             $this->db->rollback();
             throw $e;
         }
+    }
+
+    /**
+     * Get next entity ID from Vtiger sequence table
+     */
+    private function getNextEntityId()
+    {
+        // Get current ID from sequence table
+        $sql = "SELECT id FROM vtiger_crmentity_seq";
+        $result = $this->db->fetchOne($sql);
+        
+        if (!$result) {
+            throw new Exception("Unable to get next entity ID from sequence table");
+        }
+        
+        $nextId = $result['id'];
+        
+        // Update sequence table with next ID
+        $sqlUpdate = "UPDATE vtiger_crmentity_seq SET id = ?";
+        $this->db->execute($sqlUpdate, [$nextId + 1]);
+        
+        return $nextId;
     }
 
     /**
@@ -242,4 +286,6 @@ class Ticket
         ];
     }
 }
+
+
 
