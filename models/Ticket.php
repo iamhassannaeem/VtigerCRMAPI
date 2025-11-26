@@ -204,15 +204,23 @@ class Ticket
      */
     private function getNextEntityId()
     {
+        // Get the maximum ID from vtiger_crmentity to ensure sequence is correct
+        $sqlMax = "SELECT MAX(crmid) as max_id FROM vtiger_crmentity";
+        $maxResult = $this->db->fetchOne($sqlMax);
+        $maxExistingId = $maxResult['max_id'] ?? 0;
+        
         // Get current ID from sequence table
-        $sql = "SELECT id FROM vtiger_crmentity_seq";
+        $sql = "SELECT id FROM vtiger_crmentity_seq FOR UPDATE";
         $result = $this->db->fetchOne($sql);
         
         if (!$result) {
             throw new Exception("Unable to get next entity ID from sequence table");
         }
         
-        $nextId = $result['id'];
+        $sequenceId = $result['id'];
+        
+        // Ensure sequence is ahead of existing data
+        $nextId = max($sequenceId, $maxExistingId + 1);
         
         // Update sequence table with next ID
         $sqlUpdate = "UPDATE vtiger_crmentity_seq SET id = ?";
