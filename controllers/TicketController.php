@@ -104,12 +104,80 @@ class TicketController
                         'created_time' => $ticket['createdtime'],
                         'modified_time' => $ticket['modifiedtime']
                     ],
+                    'organization_details' => [
+                        'name' => $ticket['account_name'],
+                        'phone' => $ticket['account_phone'] ?? '',
+                        'email' => $ticket['account_email'] ?? '',
+                        'website' => $ticket['account_website'] ?? '',
+                        'billing_address' => [
+                            'street' => $ticket['account_bill_street'] ?? '',
+                            'city' => $ticket['account_bill_city'] ?? '',
+                            'state' => $ticket['account_bill_state'] ?? '',
+                            'country' => $ticket['account_bill_country'] ?? '',
+                            'postal_code' => $ticket['account_bill_code'] ?? ''
+                        ],
+                        'shipping_address' => [
+                            'street' => $ticket['account_ship_street'] ?? '',
+                            'city' => $ticket['account_ship_city'] ?? '',
+                            'state' => $ticket['account_ship_state'] ?? '',
+                            'country' => $ticket['account_ship_country'] ?? '',
+                            'postal_code' => $ticket['account_ship_code'] ?? ''
+                        ]
+                    ],
+                    'contact_details' => [
+                        'name' => $ticket['contact_name'],
+                        'email' => $ticket['contact_email'] ?? '',
+                        'phone' => $ticket['contact_phone'] ?? '',
+                        'mobile' => $ticket['contact_mobile'] ?? ''
+                    ],
                     'details' => [
                         'description' => $ticket['description'] ?? '',
                         'solution' => $ticket['solution'] ?? '',
                         'hours' => $ticket['hours'] ?? 0,
                         'days' => $ticket['days'] ?? 0,
-                        'custom_fields' => $this->extractCustomFields($ticket)
+                        'custom_fields' => $this->extractCustomFields($ticket),
+                        'custom_fields_labeled' => [
+                            'organization_priority' => [
+                                'field_name' => 'cf_867',
+                                'label' => 'Organization Priority',
+                                'value' => $ticket['cf_867'] ?? ''
+                            ],
+                            'services_issue' => [
+                                'field_name' => 'cf_869',
+                                'label' => 'Services Issue',
+                                'value' => $ticket['cf_869'] ?? ''
+                            ],
+                            'issue_end' => [
+                                'field_name' => 'cf_871',
+                                'label' => 'Issue End',
+                                'value' => $ticket['cf_871'] ?? ''
+                            ],
+                            'end_time' => [
+                                'field_name' => 'cf_873',
+                                'label' => 'End Time',
+                                'value' => $ticket['cf_873'] ?? null
+                            ],
+                            'send_on_confirmation' => [
+                                'field_name' => 'cf_875',
+                                'label' => 'Send On Confirmation',
+                                'value' => $ticket['cf_875'] ?? '0'
+                            ],
+                            'email_sms_assigned_to' => [
+                                'field_name' => 'cf_877',
+                                'label' => 'Email And SMS Assigned To',
+                                'value' => $ticket['cf_877'] ?? '0'
+                            ],
+                            'closing_time' => [
+                                'field_name' => 'cf_879',
+                                'label' => 'Closing Time',
+                                'value' => $ticket['cf_879'] ?? ''
+                            ],
+                            'email_sms_to_customer' => [
+                                'field_name' => 'cf_897',
+                                'label' => 'Email And SMS to Customer',
+                                'value' => $ticket['cf_897'] ?? '0'
+                            ]
+                        ]
                     ],
                     'last_comment' => $lastComment,
                     'all_comments' => $comments
@@ -200,6 +268,50 @@ class TicketController
                 'success' => true,
                 'message' => 'Ticket created successfully',
                 'data' => $result
+            ]);
+
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Get ticket comments
+     * GET /tickets/{id}/comments
+     */
+    public function getComments($ticketId)
+    {
+        // Get authenticated user
+        $auth = $this->authenticate();
+        if (!$auth) return;
+
+        try {
+            $userId = $auth['user_id'];
+            $isAdmin = $auth['is_admin'];
+
+            // Verify ticket exists and user has access
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $isAdmin);
+
+            if (!$ticket) {
+                http_response_code(404);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Ticket not found or access denied'
+                ]);
+                return;
+            }
+
+            // Get comments
+            $comments = $this->commentModel->getCommentsByTicketId($ticketId);
+
+            echo json_encode([
+                'success' => true,
+                'count' => count($comments),
+                'data' => $comments
             ]);
 
         } catch (Exception $e) {

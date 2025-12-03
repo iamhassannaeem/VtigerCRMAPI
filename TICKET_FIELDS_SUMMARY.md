@@ -222,3 +222,4 @@ curl -X POST http://localhost/vtiger-api/public/tickets \
 **See `TICKET_CREATION_GUIDE.md` for complete documentation!**
 
 
+

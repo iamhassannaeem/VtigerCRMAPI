@@ -92,13 +92,31 @@ class Ticket
                     CONCAT(u.first_name, ' ', u.last_name) as assigned_to_name,
                     CONCAT(creator.first_name, ' ', creator.last_name) as created_by_name,
                     a.accountname as account_name,
-                    CONCAT(c.firstname, ' ', c.lastname) as contact_name
+                    a.phone as account_phone,
+                    a.email1 as account_email,
+                    a.website as account_website,
+                    ab.bill_street as account_bill_street,
+                    ab.bill_city as account_bill_city,
+                    ab.bill_state as account_bill_state,
+                    ab.bill_country as account_bill_country,
+                    ab.bill_code as account_bill_code,
+                    ash.ship_street as account_ship_street,
+                    ash.ship_city as account_ship_city,
+                    ash.ship_state as account_ship_state,
+                    ash.ship_country as account_ship_country,
+                    ash.ship_code as account_ship_code,
+                    CONCAT(c.firstname, ' ', c.lastname) as contact_name,
+                    c.email as contact_email,
+                    c.phone as contact_phone,
+                    c.mobile as contact_mobile
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 LEFT JOIN vtiger_ticketcf tcf ON tt.ticketid = tcf.ticketid
                 LEFT JOIN vtiger_users u ON ce.smownerid = u.id
                 LEFT JOIN vtiger_users creator ON ce.smcreatorid = creator.id
                 LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
+                LEFT JOIN vtiger_accountbillads ab ON a.accountid = ab.accountaddressid
+                LEFT JOIN vtiger_accountshipads ash ON a.accountid = ash.accountaddressid
                 LEFT JOIN vtiger_contactdetails c ON tt.contact_id = c.contactid
                 WHERE tt.ticketid = ? 
                 AND ce.deleted = 0";

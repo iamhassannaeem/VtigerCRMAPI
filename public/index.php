@@ -76,6 +76,11 @@ $router->post('/tickets', function() {
     $controller->create();
 });
 
+$router->get('/tickets/{id}/comments', function($id) {
+    $controller = new TicketController();
+    $controller->getComments($id);
+});
+
 $router->post('/tickets/{id}/comments', function($id) {
     $controller = new TicketController();
     $controller->addComment($id);
@@ -163,6 +168,7 @@ $router->get('/', function() {
             'GET /tickets' => 'List all tickets',
             'GET /tickets/{id}' => 'Get ticket details',
             'POST /tickets' => 'Create new ticket',
+            'GET /tickets/{id}/comments' => 'Get ticket comments',
             'POST /tickets/{id}/comments' => 'Add comment to ticket',
             'GET /me' => 'Get user profile',
             'GET /organizations' => 'List all organizations',
