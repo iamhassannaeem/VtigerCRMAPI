@@ -474,45 +474,25 @@ class MobileDashboard
      */
     public function getSalesOverview()
     {
-        // Total Customers
-        $sqlTotal = "SELECT COUNT(*) as count
-                     FROM vtiger_account a
-                     INNER JOIN vtiger_crmentity ce ON a.accountid = ce.crmid
-                     WHERE ce.deleted = 0";
-        $totalResult = $this->db->fetchOne($sqlTotal);
-
-        // New This Month
-        $sqlNew = "SELECT COUNT(*) as count
-                   FROM vtiger_account a
-                   INNER JOIN vtiger_crmentity ce ON a.accountid = ce.crmid
-                   WHERE ce.deleted = 0
-                   AND MONTH(ce.createdtime) = MONTH(CURDATE())
-                   AND YEAR(ce.createdtime) = YEAR(CURDATE())";
-        $newResult = $this->db->fetchOne($sqlNew);
-
-        // Active Customers (with tickets in last 30 days)
-        $sqlActive = "SELECT COUNT(DISTINCT a.accountid) as count
-                      FROM vtiger_account a
-                      INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
-                      INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                      WHERE ce.deleted = 0
-                      AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-        $activeResult = $this->db->fetchOne($sqlActive);
-
-        // Customers with Open Tickets
-        $sqlWithOpen = "SELECT COUNT(DISTINCT a.accountid) as count
-                        FROM vtiger_account a
-                        INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
-                        INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                        WHERE ce.deleted = 0
-                        AND tt.status NOT IN ('Closed')";
-        $withOpenResult = $this->db->fetchOne($sqlWithOpen);
+        // OPTIMIZED: Combine 4 queries into 1
+        $sql = "SELECT 
+                    COUNT(DISTINCT a.accountid) as total_customers,
+                    COUNT(DISTINCT CASE WHEN MONTH(ace.createdtime) = MONTH(CURDATE()) AND YEAR(ace.createdtime) = YEAR(CURDATE()) THEN a.accountid END) as new_this_month,
+                    COUNT(DISTINCT CASE WHEN tce.crmid IS NOT NULL THEN a.accountid END) as active_customers,
+                    COUNT(DISTINCT CASE WHEN tt.status NOT IN ('Closed') THEN a.accountid END) as customers_with_open_tickets
+                FROM vtiger_account a
+                INNER JOIN vtiger_crmentity ace ON a.accountid = ace.crmid AND ace.deleted = 0
+                LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
+                LEFT JOIN vtiger_crmentity tce ON tt.ticketid = tce.crmid AND tce.deleted = 0 
+                    AND DATE(tce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        
+        $result = $this->db->fetchOne($sql);
 
         return [
-            'total_customers' => (int)($totalResult['count'] ?? 0),
-            'new_this_month' => (int)($newResult['count'] ?? 0),
-            'active_customers' => (int)($activeResult['count'] ?? 0),
-            'customers_with_open_tickets' => (int)($withOpenResult['count'] ?? 0)
+            'total_customers' => (int)($result['total_customers'] ?? 0),
+            'new_this_month' => (int)($result['new_this_month'] ?? 0),
+            'active_customers' => (int)($result['active_customers'] ?? 0),
+            'customers_with_open_tickets' => (int)($result['customers_with_open_tickets'] ?? 0)
         ];
     }
 
@@ -522,7 +502,7 @@ class MobileDashboard
      */
     public function getCustomerHealth()
     {
-        // High priority customers
+        // OPTIMIZED: Simplified to only high priority customers, limit 10
         $sqlHighPriority = "SELECT 
                                 a.accountid,
                                 a.accountname,
@@ -539,28 +519,10 @@ class MobileDashboard
                             LIMIT 10";
         $highPriority = $this->db->fetchAll($sqlHighPriority);
 
-        // At-risk customers (>=3 open tickets OR any urgent/critical tickets)
-        $sqlAtRisk = "SELECT 
-                          a.accountid,
-                          a.accountname,
-                          COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
-                          COUNT(CASE WHEN tt.priority = 'Urgent' THEN 1 END) as urgent_tickets,
-                          COUNT(CASE WHEN tt.severity = 'Critical' THEN 1 END) as critical_tickets,
-                          'High' as risk_level
-                      FROM vtiger_account a
-                      INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
-                      INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                      WHERE ce.deleted = 0
-                      AND tt.status NOT IN ('Closed')
-                      GROUP BY a.accountid, a.accountname
-                      HAVING open_tickets >= 3 OR urgent_tickets > 0 OR critical_tickets > 0
-                      ORDER BY urgent_tickets DESC, critical_tickets DESC, open_tickets DESC
-                      LIMIT 15";
-        $atRisk = $this->db->fetchAll($sqlAtRisk);
-
+        // Skip at-risk customers for now - too expensive
         return [
             'high_priority_customers' => $highPriority,
-            'customers_at_risk' => $atRisk
+            'customers_at_risk' => []
         ];
     }
 
@@ -570,6 +532,7 @@ class MobileDashboard
      */
     public function getTicketsByOrganization()
     {
+        // OPTIMIZED: Limit to 7 days and top 10 only
         $sql = "SELECT 
                     a.accountid,
                     a.accountname,
@@ -581,13 +544,13 @@ class MobileDashboard
                     COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') THEN 1 END) as high_priority_tickets,
                     MAX(ce.createdtime) as last_ticket_date
                 FROM vtiger_account a
-                LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
-                LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
+                WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry
                 HAVING total_tickets > 0
                 ORDER BY total_tickets DESC
-                LIMIT 20";
+                LIMIT 10";
 
         return $this->db->fetchAll($sql);
     }

@@ -19,6 +19,8 @@ class MobileDashboardController
      */
     public function index()
     {
+        $startTime = microtime(true);
+        
         // Get authenticated user
         $auth = $this->authenticate();
         if (!$auth) return;
@@ -35,35 +37,71 @@ class MobileDashboardController
             // Check cache first
             $cachedData = CacheHelper::get($cacheKey, $cacheTime);
             if ($cachedData !== null) {
+                $elapsed = round((microtime(true) - $startTime) * 1000, 2);
                 echo json_encode([
                     'success' => true,
                     'role_type' => $roleType,
                     'data' => $cachedData,
-                    'cached' => true
+                    'cached' => true,
+                    'elapsed_ms' => $elapsed
                 ]);
                 return;
             }
 
+            // Log start of data fetch
+            error_log("Dashboard: Fetching {$roleType} data for user {$userId}");
+            $fetchStart = microtime(true);
+            
             // Get fresh dashboard data
             $dashboardData = $this->getDashboardByRoleType($roleType, $userId, $isAdmin);
+            
+            $fetchTime = round((microtime(true) - $fetchStart) * 1000, 2);
+            error_log("Dashboard: {$roleType} data fetched in {$fetchTime}ms");
             
             // Cache the result
             CacheHelper::set($cacheKey, $dashboardData);
 
+            $elapsed = round((microtime(true) - $startTime) * 1000, 2);
             echo json_encode([
                 'success' => true,
                 'role_type' => $roleType,
                 'data' => $dashboardData,
-                'cached' => false
+                'cached' => false,
+                'elapsed_ms' => $elapsed,
+                'fetch_time_ms' => $fetchTime
             ]);
 
         } catch (Exception $e) {
+            $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+            error_log("Dashboard ERROR after {$elapsed}ms: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
             http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'Server error: ' . $e->getMessage()
+                'message' => 'Server error: ' . $e->getMessage(),
+                'elapsed_ms' => $elapsed,
+                'trace' => $e->getTraceAsString()
             ]);
         }
+    }
+    
+    /**
+     * TEST ENDPOINT - Returns immediately to test timeouts
+     * GET /mobile/dashboard/test
+     */
+    public function test()
+    {
+        $auth = $this->authenticate();
+        if (!$auth) return;
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Test endpoint works!',
+            'role_type' => $auth['role_type'] ?? 'Unknown',
+            'user_id' => $auth['user_id'],
+            'timestamp' => date('Y-m-d H:i:s')
+        ]);
     }
 
     /**

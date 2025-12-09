@@ -83,6 +83,12 @@ $router->get('/mobile/dashboard', function() {
     $controller->index();
 });
 
+// Test endpoint
+$router->get('/mobile/dashboard/test', function() {
+    $controller = new MobileDashboardController();
+    $controller->test();
+});
+
 // Ticket Routes
 $router->get('/tickets', function() {
     $controller = new TicketController();
