@@ -113,26 +113,41 @@ class MobileDashboardController
      */
     private function getDashboardByRoleType($roleType, $userId, $isAdmin)
     {
-        // EMERGENCY: Enable fast mode to bypass all queries
-        $fastMode = true; // Set to false after testing
-        
-        if ($fastMode) {
-            error_log("Dashboard: FAST MODE enabled for {$roleType}");
-            return $this->getFastModeDashboard($roleType, $userId);
-        }
+        // PROGRESSIVE ENABLEMENT: Enable queries one by one
+        // Set which queries to enable for testing
+        $enabledQueries = [
+            'kpis' => true,           // Start with this - already optimized
+            'trends' => false,         // Skip for now
+            'team_performance' => false,  // Skip for now  
+            'customer_insights' => false, // Skip for now
+            'critical_metrics' => true,   // Enable for NOC
+            'priority_breakdown' => false,
+            'severity_breakdown' => false,
+            'team_workload' => false,
+            'tickets_waiting_24h' => false,
+            'response_time_metrics' => false,
+            'quick_stats' => true,        // Enable for Field
+            'todays_schedule' => false,
+            'recent_comments' => false,
+            'sales_overview' => true,     // Enable for Sales
+            'customer_health' => false,
+            'tickets_by_organization' => false,
+            'customer_activity' => false,
+            'high_value_customers' => false
+        ];
         
         switch ($roleType) {
             case 'Field':
-                return $this->getFieldDashboard($userId);
+                return $this->getFieldDashboard($userId, $enabledQueries);
             
             case 'NOC':
-                return $this->getNocDashboard($userId, $isAdmin);
+                return $this->getNocDashboard($userId, $isAdmin, $enabledQueries);
             
             case 'Management':
-                return $this->getManagementDashboard($userId, $isAdmin);
+                return $this->getManagementDashboard($userId, $isAdmin, $enabledQueries);
             
             case 'Sales':
-                return $this->getSalesDashboard($userId, $isAdmin);
+                return $this->getSalesDashboard($userId, $isAdmin, $enabledQueries);
             
             case 'Others':
             default:
@@ -236,69 +251,161 @@ class MobileDashboardController
     /**
      * Get Field role dashboard
      * @param int $userId
+     * @param array $enabled
      * @return array
      */
-    private function getFieldDashboard($userId)
+    private function getFieldDashboard($userId, $enabled = [])
     {
-        return [
-            'quick_stats' => $this->dashboardModel->getQuickStats($userId),
-            'todays_schedule' => $this->dashboardModel->getTodaysSchedule($userId, 5),
-            'recent_comments' => $this->dashboardModel->getRecentCommentsForField($userId, 10)
-        ];
+        $data = [];
+        
+        if ($enabled['quick_stats'] ?? false) {
+            try {
+                $data['quick_stats'] = $this->dashboardModel->getQuickStats($userId);
+            } catch (Exception $e) {
+                error_log("Field quick_stats error: " . $e->getMessage());
+                $data['quick_stats'] = ['my_open_tickets' => 0, 'in_progress' => 0, 'high_priority' => 0, 'closed_today' => 0];
+            }
+        } else {
+            $data['quick_stats'] = ['my_open_tickets' => 0, 'in_progress' => 0, 'high_priority' => 0, 'closed_today' => 0];
+        }
+        
+        if ($enabled['todays_schedule'] ?? false) {
+            try {
+                $data['todays_schedule'] = $this->dashboardModel->getTodaysSchedule($userId, 5);
+            } catch (Exception $e) {
+                error_log("Field todays_schedule error: " . $e->getMessage());
+                $data['todays_schedule'] = [];
+            }
+        } else {
+            $data['todays_schedule'] = [];
+        }
+        
+        if ($enabled['recent_comments'] ?? false) {
+            try {
+                $data['recent_comments'] = $this->dashboardModel->getRecentCommentsForField($userId, 10);
+            } catch (Exception $e) {
+                error_log("Field recent_comments error: " . $e->getMessage());
+                $data['recent_comments'] = [];
+            }
+        } else {
+            $data['recent_comments'] = [];
+        }
+        
+        return $data;
     }
 
     /**
      * Get NOC role dashboard
      * @param int $userId
      * @param bool $isAdmin
+     * @param array $enabled
      * @return array
      */
-    private function getNocDashboard($userId, $isAdmin)
+    private function getNocDashboard($userId, $isAdmin, $enabled = [])
     {
-        return [
-            'critical_metrics' => $this->dashboardModel->getCriticalMetrics(),
-            'priority_breakdown' => $this->dashboardModel->getPriorityBreakdown(),
-            'severity_breakdown' => $this->dashboardModel->getSeverityBreakdown(),
-            'team_workload' => $this->dashboardModel->getTeamWorkload(),
-            'tickets_waiting_24h' => $this->dashboardModel->getTicketsWaitingOver24h(),
-            'response_time_metrics' => $this->dashboardModel->getResponseTimeMetrics()
-        ];
+        $data = [];
+        
+        $data['critical_metrics'] = ($enabled['critical_metrics'] ?? false) 
+            ? $this->dashboardModel->getCriticalMetrics()
+            : ['total_open_tickets' => 0, 'unassigned_tickets' => 0, 'critical_issues' => 0, 'avg_response_time_hours' => 0];
+        
+        $data['priority_breakdown'] = ($enabled['priority_breakdown'] ?? false) 
+            ? $this->dashboardModel->getPriorityBreakdown() : [];
+        
+        $data['severity_breakdown'] = ($enabled['severity_breakdown'] ?? false) 
+            ? $this->dashboardModel->getSeverityBreakdown() : [];
+        
+        $data['team_workload'] = ($enabled['team_workload'] ?? false) 
+            ? $this->dashboardModel->getTeamWorkload() : [];
+        
+        $data['tickets_waiting_24h'] = ($enabled['tickets_waiting_24h'] ?? false) 
+            ? $this->dashboardModel->getTicketsWaitingOver24h() : [];
+        
+        $data['response_time_metrics'] = ($enabled['response_time_metrics'] ?? false) 
+            ? $this->dashboardModel->getResponseTimeMetrics() : [];
+        
+        return $data;
     }
 
     /**
      * Get Management role dashboard
      * @param int $userId
      * @param bool $isAdmin
+     * @param array $enabled
      * @return array
      */
-    private function getManagementDashboard($userId, $isAdmin)
+    private function getManagementDashboard($userId, $isAdmin, $enabled = [])
     {
-        return [
-            'kpis' => $this->dashboardModel->getKPIs(),
-            'trends' => [
-                'tickets_created_vs_resolved' => $this->dashboardModel->getTrendsData(30),
-                'priority_trends' => $this->dashboardModel->getPriorityTrends(30)
-            ],
-            'team_performance' => $this->dashboardModel->getTeamPerformance(),
-            'customer_insights' => $this->dashboardModel->getCustomerInsights()
+        $data = [];
+        
+        // KPIs - already optimized
+        if ($enabled['kpis'] ?? false) {
+            try {
+                $start = microtime(true);
+                $data['kpis'] = $this->dashboardModel->getKPIs();
+                $elapsed = round((microtime(true) - $start) * 1000, 2);
+                error_log("Management getKPIs took {$elapsed}ms");
+            } catch (Exception $e) {
+                error_log("Management KPIs error: " . $e->getMessage());
+                $data['kpis'] = [
+                    'total_tickets' => 0, 'open_tickets' => 0, 'resolution_rate' => 0,
+                    'avg_resolution_time_hours' => 0,
+                    'customer_satisfaction' => ['score' => 'N/A', 'percentage' => 0, 'distribution' => ['high' => 0, 'medium' => 0, 'low' => 0]]
+                ];
+            }
+        } else {
+            $data['kpis'] = [
+                'total_tickets' => 0, 'open_tickets' => 0, 'resolution_rate' => 0,
+                'avg_resolution_time_hours' => 0,
+                'customer_satisfaction' => ['score' => 'N/A', 'percentage' => 0, 'distribution' => ['high' => 0, 'medium' => 0, 'low' => 0]]
+            ];
+        }
+        
+        // Trends
+        $data['trends'] = [
+            'tickets_created_vs_resolved' => ($enabled['trends'] ?? false) ? $this->dashboardModel->getTrendsData(30) : [],
+            'priority_trends' => [] // Always disabled - too slow
         ];
+        
+        $data['team_performance'] = ($enabled['team_performance'] ?? false) 
+            ? $this->dashboardModel->getTeamPerformance() : [];
+        
+        $data['customer_insights'] = ($enabled['customer_insights'] ?? false) 
+            ? $this->dashboardModel->getCustomerInsights() 
+            : ['top_customers' => [], 'tickets_by_category' => [], 'tickets_by_severity' => []];
+        
+        return $data;
     }
 
     /**
      * Get Sales role dashboard
      * @param int $userId
      * @param bool $isAdmin
+     * @param array $enabled
      * @return array
      */
-    private function getSalesDashboard($userId, $isAdmin)
+    private function getSalesDashboard($userId, $isAdmin, $enabled = [])
     {
-        return [
-            'sales_overview' => $this->dashboardModel->getSalesOverview(),
-            'customer_health' => $this->dashboardModel->getCustomerHealth(),
-            'tickets_by_organization' => $this->dashboardModel->getTicketsByOrganization(),
-            'customer_activity' => $this->dashboardModel->getCustomerActivity(10),
-            'high_value_customers' => $this->dashboardModel->getHighValueCustomers()
-        ];
+        $data = [];
+        
+        $data['sales_overview'] = ($enabled['sales_overview'] ?? false) 
+            ? $this->dashboardModel->getSalesOverview()
+            : ['total_customers' => 0, 'new_this_month' => 0, 'active_customers' => 0, 'customers_with_open_tickets' => 0];
+        
+        $data['customer_health'] = ($enabled['customer_health'] ?? false) 
+            ? $this->dashboardModel->getCustomerHealth()
+            : ['high_priority_customers' => [], 'customers_at_risk' => []];
+        
+        $data['tickets_by_organization'] = ($enabled['tickets_by_organization'] ?? false) 
+            ? $this->dashboardModel->getTicketsByOrganization() : [];
+        
+        $data['customer_activity'] = ($enabled['customer_activity'] ?? false) 
+            ? $this->dashboardModel->getCustomerActivity(10) : [];
+        
+        $data['high_value_customers'] = ($enabled['high_value_customers'] ?? false) 
+            ? $this->dashboardModel->getHighValueCustomers() : [];
+        
+        return $data;
     }
 
     /**
