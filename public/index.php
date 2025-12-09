@@ -192,10 +192,249 @@ $router->get('/', function() {
             'GET /picklists/issue-end' => 'Get issue end options',
             'GET /picklists/categories' => 'Get ticket categories',
             'GET /picklists/severities' => 'Get ticket severities',
-            'GET /picklists/organization-priority' => 'Get organization priority options'
+            'GET /picklists/organization-priority' => 'Get organization priority options',
+            'GET /debug/logs' => 'View API logs (Debug only)',
+            'GET /debug/logs/clear' => 'Clear API logs (Debug only)',
+            'GET /debug/logs/download' => 'Download API logs (Debug only)'
         ]
     ]);
 });
+
+// ==================== DEBUG ENDPOINTS ====================
+// WARNING: DISABLE IN PRODUCTION OR RESTRICT ACCESS!
+
+// View recent logs
+$router->get('/debug/logs', function() {
+    header('Content-Type: text/html; charset=utf-8');
+    
+    $logFile = __DIR__ . '/../logs/api.log';
+    
+    // Get filter and lines parameters
+    $filter = $_GET['filter'] ?? '';
+    $lines = isset($_GET['lines']) ? (int)$_GET['lines'] : 200;
+    $refresh = isset($_GET['refresh']) ? (int)$_GET['refresh'] : 0;
+    
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>API Logs Viewer</title>
+        <style>
+            body {
+                font-family: 'Courier New', monospace;
+                background: #1e1e1e;
+                color: #d4d4d4;
+                margin: 0;
+                padding: 20px;
+            }
+            .header {
+                background: #2d2d30;
+                padding: 15px;
+                margin-bottom: 20px;
+                border-radius: 5px;
+            }
+            .controls {
+                margin-bottom: 10px;
+            }
+            .controls input, .controls select, .controls button {
+                padding: 8px 12px;
+                margin-right: 10px;
+                background: #3e3e42;
+                border: 1px solid #555;
+                color: #d4d4d4;
+                border-radius: 3px;
+            }
+            .controls button {
+                cursor: pointer;
+                background: #0e639c;
+            }
+            .controls button:hover {
+                background: #1177bb;
+            }
+            .log-container {
+                background: #1e1e1e;
+                padding: 15px;
+                border: 1px solid #3e3e42;
+                border-radius: 5px;
+                overflow-x: auto;
+            }
+            .log-line {
+                margin: 2px 0;
+                padding: 2px 0;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            .log-line.ERROR { color: #f48771; font-weight: bold; }
+            .log-line.WARN { color: #dcdcaa; }
+            .log-line.INFO { color: #4fc1ff; }
+            .log-line.DEBUG { color: #b5cea8; }
+            .log-line.PERF { color: #c586c0; }
+            .log-line.TIMER { color: #9cdcfe; }
+            .log-line:hover { background: #2d2d30; }
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 10px;
+                margin-top: 10px;
+            }
+            .stat-box {
+                background: #2d2d30;
+                padding: 10px;
+                border-radius: 5px;
+                text-align: center;
+            }
+            .stat-label {
+                font-size: 12px;
+                color: #858585;
+            }
+            .stat-value {
+                font-size: 20px;
+                font-weight: bold;
+                margin-top: 5px;
+            }
+            .no-logs {
+                color: #858585;
+                text-align: center;
+                padding: 40px;
+            }
+        </style>
+        <?php if ($refresh > 0): ?>
+        <meta http-equiv="refresh" content="<?= $refresh ?>">
+        <?php endif; ?>
+    </head>
+    <body>
+        <div class="header">
+            <h2>🔍 API Logs Viewer</h2>
+            <div class="controls">
+                <form method="GET" style="display: inline;">
+                    <input type="text" name="filter" placeholder="Filter logs..." value="<?= htmlspecialchars($filter) ?>">
+                    <select name="lines">
+                        <option value="100" <?= $lines == 100 ? 'selected' : '' ?>>Last 100 lines</option>
+                        <option value="200" <?= $lines == 200 ? 'selected' : '' ?>>Last 200 lines</option>
+                        <option value="500" <?= $lines == 500 ? 'selected' : '' ?>>Last 500 lines</option>
+                        <option value="1000" <?= $lines == 1000 ? 'selected' : '' ?>>Last 1000 lines</option>
+                    </select>
+                    <select name="refresh">
+                        <option value="0" <?= $refresh == 0 ? 'selected' : '' ?>>No auto-refresh</option>
+                        <option value="5" <?= $refresh == 5 ? 'selected' : '' ?>>Refresh every 5s</option>
+                        <option value="10" <?= $refresh == 10 ? 'selected' : '' ?>>Refresh every 10s</option>
+                        <option value="30" <?= $refresh == 30 ? 'selected' : '' ?>>Refresh every 30s</option>
+                    </select>
+                    <button type="submit">Apply</button>
+                    <button type="button" onclick="location.href='?'">Clear Filters</button>
+                </form>
+            </div>
+            
+            <?php
+            if (file_exists($logFile)) {
+                $fileSize = round(filesize($logFile) / 1024, 2);
+                $allLines = file($logFile);
+                $totalLines = count($allLines);
+                
+                // Count log levels
+                $errorCount = $warnCount = $infoCount = $perfCount = 0;
+                foreach ($allLines as $line) {
+                    if (strpos($line, '[ERROR]') !== false) $errorCount++;
+                    if (strpos($line, '[WARN]') !== false) $warnCount++;
+                    if (strpos($line, '[INFO]') !== false) $infoCount++;
+                    if (strpos($line, '[PERF]') !== false) $perfCount++;
+                }
+                
+                echo "<div class='stats'>";
+                echo "<div class='stat-box'><div class='stat-label'>File Size</div><div class='stat-value'>{$fileSize} KB</div></div>";
+                echo "<div class='stat-box'><div class='stat-label'>Total Lines</div><div class='stat-value'>{$totalLines}</div></div>";
+                echo "<div class='stat-box'><div class='stat-label'>Errors</div><div class='stat-value' style='color: #f48771'>{$errorCount}</div></div>";
+                echo "<div class='stat-box'><div class='stat-label'>Warnings</div><div class='stat-value' style='color: #dcdcaa'>{$warnCount}</div></div>";
+                echo "<div class='stat-box'><div class='stat-label'>Info</div><div class='stat-value' style='color: #4fc1ff'>{$infoCount}</div></div>";
+                echo "<div class='stat-box'><div class='stat-label'>Performance</div><div class='stat-value' style='color: #c586c0'>{$perfCount}</div></div>";
+                echo "</div>";
+            }
+            ?>
+        </div>
+        
+        <div class="log-container">
+            <?php
+            if (file_exists($logFile)) {
+                $allLines = file($logFile);
+                $lastLines = array_slice($allLines, -$lines);
+                
+                // Apply filter if provided
+                if (!empty($filter)) {
+                    $lastLines = array_filter($lastLines, function($line) use ($filter) {
+                        return stripos($line, $filter) !== false;
+                    });
+                }
+                
+                if (empty($lastLines)) {
+                    echo "<div class='no-logs'>No logs found matching your criteria</div>";
+                } else {
+                    foreach ($lastLines as $line) {
+                        $line = htmlspecialchars($line);
+                        
+                        // Determine log level
+                        $class = '';
+                        if (strpos($line, '[ERROR]') !== false) $class = 'ERROR';
+                        elseif (strpos($line, '[WARN]') !== false) $class = 'WARN';
+                        elseif (strpos($line, '[INFO]') !== false) $class = 'INFO';
+                        elseif (strpos($line, '[DEBUG]') !== false) $class = 'DEBUG';
+                        elseif (strpos($line, '[PERF]') !== false) $class = 'PERF';
+                        
+                        echo "<div class='log-line {$class}'>{$line}</div>";
+                    }
+                }
+            } else {
+                echo "<div class='no-logs'>No log file found at: {$logFile}<br><br>Logs will be created when you make API requests.</div>";
+            }
+            ?>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px; color: #858585; font-size: 12px;">
+            Last updated: <?= date('Y-m-d H:i:s') ?>
+            <?php if ($refresh > 0): ?>
+                | Auto-refreshing every <?= $refresh ?> seconds
+            <?php endif; ?>
+        </div>
+    </body>
+    </html>
+    <?php
+});
+
+// Clear logs endpoint
+$router->get('/debug/logs/clear', function() {
+    $logFile = __DIR__ . '/../logs/api.log';
+    
+    if (file_exists($logFile)) {
+        file_put_contents($logFile, '');
+        echo json_encode([
+            'success' => true,
+            'message' => 'Logs cleared successfully'
+        ]);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Log file not found'
+        ]);
+    }
+});
+
+// Download logs
+$router->get('/debug/logs/download', function() {
+    $logFile = __DIR__ . '/../logs/api.log';
+    
+    if (file_exists($logFile)) {
+        header('Content-Type: text/plain');
+        header('Content-Disposition: attachment; filename="api-logs-' . date('Y-m-d-His') . '.txt"');
+        readfile($logFile);
+    } else {
+        http_response_code(404);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Log file not found'
+        ]);
+    }
+});
+
+// ==================== END DEBUG ENDPOINTS ====================
 
 // 404 handler
 $router->notFound(function() {

@@ -116,13 +116,13 @@ class MobileDashboardController
     {
         return [
             'kpis' => $this->dashboardModel->getKPIs(),
-          /*  'trends' => [
+          / 'trends' => [
                 'tickets_created_vs_resolved' => $this->dashboardModel->getTrendsData(30),
                 'priority_trends' => $this->dashboardModel->getPriorityTrends(30)
             ],
             'team_performance' => $this->dashboardModel->getTeamPerformance(),
             'customer_insights' => $this->dashboardModel->getCustomerInsights()
-            */
+            
         ];
     }
 
