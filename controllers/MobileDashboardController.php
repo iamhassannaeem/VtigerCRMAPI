@@ -116,24 +116,24 @@ class MobileDashboardController
         // PROGRESSIVE ENABLEMENT: Enable queries one by one
         // Set which queries to enable for testing
         $enabledQueries = [
-            'kpis' => true,           // Start with this - already optimized
-            'trends' => false,         // Skip for now
-            'team_performance' => false,  // Skip for now  
-            'customer_insights' => false, // Skip for now
-            'critical_metrics' => true,   // Enable for NOC
-            'priority_breakdown' => false,
-            'severity_breakdown' => false,
-            'team_workload' => false,
-            'tickets_waiting_24h' => false,
-            'response_time_metrics' => false,
-            'quick_stats' => true,        // Enable for Field
-            'todays_schedule' => false,
-            'recent_comments' => false,
-            'sales_overview' => true,     // Enable for Sales
-            'customer_health' => false,
-            'tickets_by_organization' => false,
-            'customer_activity' => false,
-            'high_value_customers' => false
+            'kpis' => true,           // ✅ Works - 16s
+            'trends' => true,          // ⚡ Enable - simple query with limit
+            'team_performance' => true,  // ⚡ Enable - optimized with limit 20
+            'customer_insights' => false, // ❌ Skip - too slow
+            'critical_metrics' => true,   // ✅ Enable for NOC - optimized
+            'priority_breakdown' => true, // ⚡ Enable - simple GROUP BY
+            'severity_breakdown' => true, // ⚡ Enable - simple GROUP BY
+            'team_workload' => false,     // ❌ Skip - can be slow
+            'tickets_waiting_24h' => true, // ⚡ Enable - has date filter
+            'response_time_metrics' => false, // ❌ Disabled - returns mock
+            'quick_stats' => true,        // ✅ Enable for Field - optimized
+            'todays_schedule' => true,    // ⚡ Enable - limited to today
+            'recent_comments' => true,    // ⚡ Enable - has limit
+            'sales_overview' => true,     // ✅ Enable for Sales - optimized
+            'customer_health' => false,   // ❌ Skip for now
+            'tickets_by_organization' => false, // ❌ Skip for now
+            'customer_activity' => true,  // ⚡ Enable - limited to 7 days
+            'high_value_customers' => false  // ❌ Skip for now
         ];
         
         switch ($roleType) {
