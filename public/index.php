@@ -25,7 +25,14 @@ require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Router.php';
 require_once __DIR__ . '/../helpers/JWT.php';
 require_once __DIR__ . '/../helpers/RoleHelper.php';
-require_once __DIR__ . '/../helpers/Logger.php';
+
+// Load Logger with error handling
+try {
+    require_once __DIR__ . '/../helpers/Logger.php';
+} catch (Exception $e) {
+    error_log("Failed to load Logger: " . $e->getMessage());
+}
+
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Ticket.php';
 require_once __DIR__ . '/../models/Comment.php';
