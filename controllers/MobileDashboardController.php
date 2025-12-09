@@ -28,13 +28,33 @@ class MobileDashboardController
             $isAdmin = $auth['is_admin'] ?? false;
             $roleType = $auth['role_type'] ?? 'Others';
 
-            // Get dashboard data based on role type
+            // Cache duration based on role (Management needs longer cache due to complexity)
+            $cacheTime = ($roleType === 'Management' || $roleType === 'NOC') ? 600 : 300; // 10 or 5 minutes
+            $cacheKey = "dashboard_{$roleType}_{$userId}";
+            
+            // Check cache first
+            $cachedData = CacheHelper::get($cacheKey, $cacheTime);
+            if ($cachedData !== null) {
+                echo json_encode([
+                    'success' => true,
+                    'role_type' => $roleType,
+                    'data' => $cachedData,
+                    'cached' => true
+                ]);
+                return;
+            }
+
+            // Get fresh dashboard data
             $dashboardData = $this->getDashboardByRoleType($roleType, $userId, $isAdmin);
+            
+            // Cache the result
+            CacheHelper::set($cacheKey, $dashboardData);
 
             echo json_encode([
                 'success' => true,
                 'role_type' => $roleType,
-                'data' => $dashboardData
+                'data' => $dashboardData,
+                'cached' => false
             ]);
 
         } catch (Exception $e) {

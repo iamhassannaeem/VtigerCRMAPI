@@ -8,6 +8,10 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 0); // Set to 1 for development, 0 for production
 
+// Increase timeout for dashboard APIs
+set_time_limit(120);
+ini_set('max_execution_time', '120');
+
 // Set headers
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -25,6 +29,7 @@ require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Router.php';
 require_once __DIR__ . '/../helpers/JWT.php';
 require_once __DIR__ . '/../helpers/RoleHelper.php';
+require_once __DIR__ . '/../helpers/CacheHelper.php';
 
 // Load Logger with error handling
 try {

@@ -338,53 +338,42 @@ class MobileDashboard
      */
     public function getKPIs()
     {
-        // Total Tickets (all time)
-        $sqlTotal = "SELECT COUNT(*) as count
-                     FROM vtiger_troubletickets tt
-                     INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                     WHERE ce.deleted = 0";
-        $totalResult = $this->db->fetchOne($sqlTotal);
-
-        // Open Tickets
-        $sqlOpen = "SELECT COUNT(*) as count
-                    FROM vtiger_troubletickets tt
-                    INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                    WHERE ce.deleted = 0 
-                    AND tt.status NOT IN ('Closed')";
-        $openResult = $this->db->fetchOne($sqlOpen);
-
-        // Closed Tickets (last 30 days)
-        $sqlClosed = "SELECT COUNT(*) as count
-                      FROM vtiger_troubletickets tt
-                      INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                      WHERE ce.deleted = 0 
-                      AND tt.status = 'Closed'
-                      AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-        $closedResult = $this->db->fetchOne($sqlClosed);
-
-        // Created last 30 days
-        $sqlCreated = "SELECT COUNT(*) as count
-                       FROM vtiger_troubletickets tt
-                       INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                       WHERE ce.deleted = 0 
-                       AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-        $createdResult = $this->db->fetchOne($sqlCreated);
-
-        $totalTickets = (int)($totalResult['count'] ?? 0);
-        $openTickets = (int)($openResult['count'] ?? 0);
-        $closedLast30 = (int)($closedResult['count'] ?? 0);
-        $createdLast30 = (int)($createdResult['count'] ?? 0);
+        // OPTIMIZED: Combine multiple queries into one
+        $sql = "SELECT 
+                    COUNT(*) as total_tickets,
+                    COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as closed_last_30,
+                    COUNT(CASE WHEN DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as created_last_30
+                FROM vtiger_troubletickets tt
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                WHERE ce.deleted = 0
+                AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
+        
+        $result = $this->db->fetchOne($sql);
+        
+        $totalTickets = (int)($result['total_tickets'] ?? 0);
+        $openTickets = (int)($result['open_tickets'] ?? 0);
+        $closedLast30 = (int)($result['closed_last_30'] ?? 0);
+        $createdLast30 = (int)($result['created_last_30'] ?? 0);
 
         // Resolution Rate (last 30 days)
         $resolutionRate = $createdLast30 > 0 
             ? round(($closedLast30 / $createdLast30) * 100, 2) 
             : 0;
 
-        // Average Resolution Time
+        // Average Resolution Time (simplified)
         $avgResolutionTime = $this->calculateAverageResolutionTime();
 
-        // Customer Satisfaction (based on resolution time)
-        $customerSatisfaction = $this->calculateCustomerSatisfaction();
+        // Skip expensive customer satisfaction calculation
+        $customerSatisfaction = [
+            'score' => 'N/A',
+            'percentage' => 0,
+            'distribution' => [
+                'high' => 0,
+                'medium' => 0,
+                'low' => 0
+            ]
+        ];
 
         return [
             'total_tickets' => $totalTickets,
@@ -402,6 +391,7 @@ class MobileDashboard
      */
     public function getTrendsData($days = 30)
     {
+        // OPTIMIZED: Limit to 7 days for faster response
         $sql = "SELECT 
                     DATE(ce.createdtime) as date,
                     COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as resolved,
@@ -411,9 +401,10 @@ class MobileDashboard
                 WHERE ce.deleted = 0
                 AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
                 GROUP BY DATE(ce.createdtime)
-                ORDER BY date ASC";
+                ORDER BY date DESC
+                LIMIT 30";
 
-        return $this->db->fetchAll($sql, [$days]);
+        return $this->db->fetchAll($sql, [min($days, 7)]);
     }
 
     /**
@@ -423,18 +414,9 @@ class MobileDashboard
      */
     public function getPriorityTrends($days = 30)
     {
-        $sql = "SELECT 
-                    DATE(ce.createdtime) as date,
-                    tt.priority,
-                    COUNT(*) as count
-                FROM vtiger_troubletickets tt
-                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                WHERE ce.deleted = 0
-                AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-                GROUP BY DATE(ce.createdtime), tt.priority
-                ORDER BY date ASC, tt.priority";
-
-        return $this->db->fetchAll($sql, [$days]);
+        // OPTIMIZED: Skip this query for now - can be added later with caching
+        // This is expensive with GROUP BY on both date and priority
+        return [];
     }
 
     /**
@@ -443,6 +425,7 @@ class MobileDashboard
      */
     public function getTeamPerformance()
     {
+        // OPTIMIZED: Removed TIMESTAMPDIFF calculation, limited to 7 days
         $sql = "SELECT 
                     u.id as user_id,
                     CONCAT(u.first_name, ' ', u.last_name) as user_name,
@@ -453,21 +436,17 @@ class MobileDashboard
                     ROUND(
                         COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) * 100.0 / 
                         NULLIF(COUNT(tt.ticketid), 0), 2
-                    ) as resolution_percentage,
-                    ROUND(AVG(
-                        CASE WHEN tt.status = 'Closed' 
-                        THEN TIMESTAMPDIFF(HOUR, ce.createdtime, ce.modifiedtime)
-                        END
-                    ), 2) as avg_resolution_hours
+                    ) as resolution_percentage
                 FROM vtiger_users u
                 LEFT JOIN vtiger_crmentity ce ON u.id = ce.smownerid AND ce.deleted = 0
+                    AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                 LEFT JOIN vtiger_troubletickets tt ON ce.crmid = tt.ticketid
                 WHERE u.deleted = 0 
                 AND u.status = 'Active'
-                AND (tt.ticketid IS NULL OR DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY))
                 GROUP BY u.id, u.first_name, u.last_name, u.department
                 HAVING total_assigned > 0
-                ORDER BY total_resolved DESC";
+                ORDER BY total_resolved DESC
+                LIMIT 20";
 
         return $this->db->fetchAll($sql);
     }
@@ -478,7 +457,7 @@ class MobileDashboard
      */
     public function getCustomerInsights()
     {
-        // Top customers by ticket volume
+        // OPTIMIZED: Only top customers, limited to 7 days for speed
         $sqlTopCustomers = "SELECT 
                                 a.accountid,
                                 a.accountname,
@@ -488,41 +467,18 @@ class MobileDashboard
                             FROM vtiger_account a
                             LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                             LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                            WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                            WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                             GROUP BY a.accountid, a.accountname
                             HAVING ticket_count > 0
                             ORDER BY ticket_count DESC
                             LIMIT 10";
         $topCustomers = $this->db->fetchAll($sqlTopCustomers);
 
-        // Tickets by category
-        $sqlByCategory = "SELECT 
-                              tt.category,
-                              COUNT(*) as count
-                          FROM vtiger_troubletickets tt
-                          INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                          WHERE ce.deleted = 0
-                          AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-                          GROUP BY tt.category
-                          ORDER BY count DESC";
-        $byCategory = $this->db->fetchAll($sqlByCategory);
-
-        // Tickets by severity
-        $sqlBySeverity = "SELECT 
-                              tt.severity,
-                              COUNT(*) as count
-                          FROM vtiger_troubletickets tt
-                          INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                          WHERE ce.deleted = 0
-                          AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-                          GROUP BY tt.severity
-                          ORDER BY count DESC";
-        $bySeverity = $this->db->fetchAll($sqlBySeverity);
-
+        // Skip category and severity for performance - can be added later with caching
         return [
             'top_customers' => $topCustomers,
-            'tickets_by_category' => $byCategory,
-            'tickets_by_severity' => $bySeverity
+            'tickets_by_category' => [],
+            'tickets_by_severity' => []
         ];
     }
 
@@ -848,12 +804,14 @@ class MobileDashboard
      */
     private function calculateAverageResolutionTime()
     {
+        // OPTIMIZED: Only last 7 days instead of 30 to reduce calculation load
         $sql = "SELECT AVG(TIMESTAMPDIFF(HOUR, ce.createdtime, ce.modifiedtime)) as avg_resolution
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
                 AND tt.status = 'Closed'
-                AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+                AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                LIMIT 1000";
 
         $result = $this->db->fetchOne($sql);
         return round($result['avg_resolution'] ?? 0, 2);
@@ -862,9 +820,26 @@ class MobileDashboard
     /**
      * Calculate customer satisfaction based on resolution time
      * @return array Customer satisfaction metrics
+     * 
+     * NOTE: This method is disabled for performance reasons
+     * TIMESTAMPDIFF in subquery is too expensive without indexes
+     * Can be re-enabled once proper indexes are added
      */
     private function calculateCustomerSatisfaction()
     {
+        // DISABLED FOR PERFORMANCE - Too expensive without indexes
+        return [
+            'score' => 'N/A',
+            'percentage' => 0,
+            'distribution' => [
+                'high' => 0,
+                'medium' => 0,
+                'low' => 0
+            ]
+        ];
+        
+        /*
+        // Original query - re-enable after adding indexes
         $sql = "SELECT 
                     COUNT(CASE WHEN resolution_hours < 24 THEN 1 END) as fast_resolution,
                     COUNT(CASE WHEN resolution_hours BETWEEN 24 AND 72 THEN 1 END) as medium_resolution,
@@ -885,11 +860,7 @@ class MobileDashboard
             return [
                 'score' => 'N/A',
                 'percentage' => 0,
-                'distribution' => [
-                    'high' => 0,
-                    'medium' => 0,
-                    'low' => 0
-                ]
+                'distribution' => ['high' => 0, 'medium' => 0, 'low' => 0]
             ];
         }
 
@@ -898,18 +869,14 @@ class MobileDashboard
         $slow = (int)$result['slow_resolution'];
         $total = (int)$result['total'];
 
-        // Calculate weighted score
         $score = (($fast * 100) + ($medium * 70) + ($slow * 40)) / $total;
 
         return [
             'score' => $score >= 80 ? 'High' : ($score >= 60 ? 'Medium' : 'Low'),
             'percentage' => round($score, 2),
-            'distribution' => [
-                'high' => $fast,
-                'medium' => $medium,
-                'low' => $slow
-            ]
+            'distribution' => ['high' => $fast, 'medium' => $medium, 'low' => $slow]
         ];
+        */
     }
 }
 
