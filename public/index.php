@@ -24,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Router.php';
 require_once __DIR__ . '/../helpers/JWT.php';
-require_once __DIR__ . '/../helpers/RoleHelper.php'; 
+require_once __DIR__ . '/../helpers/RoleHelper.php';
+require_once __DIR__ . '/../helpers/Logger.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Ticket.php';
 require_once __DIR__ . '/../models/Comment.php';
