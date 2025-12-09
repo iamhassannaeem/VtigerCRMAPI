@@ -8,9 +8,10 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 0); // Set to 1 for development, 0 for production
 
-// Increase timeout for dashboard APIs
-set_time_limit(120);
-ini_set('max_execution_time', '120');
+// Increase timeout for dashboard APIs (aggressive)
+set_time_limit(180); // 3 minutes
+ini_set('max_execution_time', '180');
+ini_set('memory_limit', '256M'); // Increase memory limit
 
 // Set headers
 header('Content-Type: application/json');
