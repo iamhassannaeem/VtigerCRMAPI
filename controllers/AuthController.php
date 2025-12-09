@@ -47,11 +47,16 @@ class AuthController
             // Check if user is admin
             $isAdmin = ($user['is_admin'] === 'on');
 
+           // ✨ NEW: Extract role type from role name
+           $roleInfo = RoleHelper::getRoleType($user['rolename'] ?? '');
+
             // Generate JWT token
             $payload = [
                 'user_id' => $user['id'],
                 'username' => $user['user_name'],
-                'is_admin' => $isAdmin
+                'is_admin' => $isAdmin,
+                'role_type' => $roleInfo['type']  // ✨ NEW: Include role_type in JWT
+      
             ];
 
             $token = JWT::generateToken($payload);
@@ -69,6 +74,11 @@ class AuthController
                     'email' => $user['email1'],
                     'is_admin' => $isAdmin,
                     'role' => $user['rolename'] ?? 'User',
+                    'role_info' => [
+                        'full_name' => $roleInfo['full_name'],
+                        'base_name' => $roleInfo['base_name'],
+                        'type' => $roleInfo['type']
+                    ],
                     'department' => $user['department'] ?? ''
                 ]
             ]);

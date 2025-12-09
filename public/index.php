@@ -24,12 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Router.php';
 require_once __DIR__ . '/../helpers/JWT.php';
+require_once __DIR__ . '/../helpers/RoleHelper.php'; 
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Ticket.php';
 require_once __DIR__ . '/../models/Comment.php';
 require_once __DIR__ . '/../models/Organization.php';
 require_once __DIR__ . '/../models/Contact.php';
 require_once __DIR__ . '/../models/Picklist.php';
+require_once __DIR__ . '/../models/MobileDashboard.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/TicketController.php';
@@ -37,6 +39,7 @@ require_once __DIR__ . '/../controllers/ProfileController.php';
 require_once __DIR__ . '/../controllers/OrganizationController.php';
 require_once __DIR__ . '/../controllers/ContactController.php';
 require_once __DIR__ . '/../controllers/PicklistController.php';
+require_once __DIR__ . '/../controllers/MobileDashboardController.php';
 
 // Initialize router
 $router = new Router();
@@ -57,6 +60,12 @@ $router->get('/auth/verify', function() {
 // Dashboard Routes
 $router->get('/dashboard', function() {
     $controller = new DashboardController();
+    $controller->index();
+});
+
+// Mobile Dashboard Routes (Role-based)
+$router->get('/mobile/dashboard', function() {
+    $controller = new MobileDashboardController();
     $controller->index();
 });
 
@@ -165,6 +174,7 @@ $router->get('/', function() {
             'POST /auth/login' => 'User authentication',
             'GET /auth/verify' => 'Verify JWT token',
             'GET /dashboard' => 'Dashboard statistics',
+            'GET /mobile/dashboard' => 'Mobile role-based dashboard',
             'GET /tickets' => 'List all tickets',
             'GET /tickets/{id}' => 'Get ticket details',
             'POST /tickets' => 'Create new ticket',
