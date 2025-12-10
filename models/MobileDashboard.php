@@ -22,12 +22,12 @@ class MobileDashboard
      */
     public function getQuickStats($userId)
     {
-        // OPTIMIZED: Combine 4 queries into 1
+        // OPTIMIZED: Combine 4 queries into 1 - Fixed to use index
         $sql = "SELECT 
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as my_open_tickets,
                     COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress,
                     COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') AND tt.status NOT IN ('Closed') THEN 1 END) as high_priority,
-                    COUNT(CASE WHEN tt.status = 'Closed' AND DATE(ce.modifiedtime) = CURDATE() THEN 1 END) as closed_today
+                    COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= CURDATE() AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 1 END) as closed_today
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
@@ -71,7 +71,8 @@ class MobileDashboard
                 WHERE ce.deleted = 0 
                 AND ce.smownerid = ?
                 AND tt.status NOT IN ('Closed')
-                AND DATE(ce.createdtime) = CURDATE()
+                AND ce.createdtime >= CURDATE() 
+                AND ce.createdtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
                 ORDER BY ce.createdtime DESC
                 LIMIT ?";
 
@@ -201,7 +202,7 @@ class MobileDashboard
                     CONCAT(u.first_name, ' ', u.last_name) as user_name,
                     u.department,
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
-                    COUNT(CASE WHEN tt.status = 'Closed' AND DATE(ce.modifiedtime) = CURDATE() THEN 1 END) as closed_today,
+                    COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= CURDATE() AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 1 END) as closed_today,
                     CASE 
                         WHEN COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) = 0 THEN 'Light'
                         WHEN COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) < 5 THEN 'Normal'
@@ -210,7 +211,7 @@ class MobileDashboard
                     END as workload_indicator
                 FROM vtiger_users u
                 LEFT JOIN vtiger_crmentity ce ON u.id = ce.smownerid AND ce.deleted = 0
-                    AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                 LEFT JOIN vtiger_troubletickets tt ON ce.crmid = tt.ticketid
                 WHERE u.deleted = 0 
                 AND u.status = 'Active'
@@ -297,7 +298,7 @@ class MobileDashboard
                     FROM vtiger_troubletickets tt
                     INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                     WHERE ce.deleted = 0
-                    AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                     LIMIT 1000
                 ) as response_data
                 GROUP BY response_time_range
@@ -322,16 +323,16 @@ class MobileDashboard
      */
     public function getKPIs()
     {
-        // OPTIMIZED: Combine multiple queries into one
+        // OPTIMIZED: Combine multiple queries into one - Fixed for index usage
         $sql = "SELECT 
                     COUNT(*) as total_tickets,
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
-                    COUNT(CASE WHEN tt.status = 'Closed' AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as closed_last_30,
-                    COUNT(CASE WHEN DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as created_last_30
+                    COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as closed_last_30,
+                    COUNT(CASE WHEN ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as created_last_30
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
-                AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
+                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
         
         $result = $this->db->fetchOne($sql);
         
@@ -375,7 +376,7 @@ class MobileDashboard
      */
     public function getTrendsData($days = 30)
     {
-        // OPTIMIZED: Limit to 7 days for faster response
+        // OPTIMIZED: Limit to 7 days for faster response - Fixed for index usage
         $sql = "SELECT 
                     DATE(ce.createdtime) as date,
                     COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as resolved,
@@ -383,7 +384,7 @@ class MobileDashboard
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
-                AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
                 GROUP BY DATE(ce.createdtime)
                 ORDER BY date DESC
                 LIMIT 30";
@@ -423,7 +424,7 @@ class MobileDashboard
                     ) as resolution_percentage
                 FROM vtiger_users u
                 LEFT JOIN vtiger_crmentity ce ON u.id = ce.smownerid AND ce.deleted = 0
-                    AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                 LEFT JOIN vtiger_troubletickets tt ON ce.crmid = tt.ticketid
                 WHERE u.deleted = 0 
                 AND u.status = 'Active'
@@ -451,7 +452,7 @@ class MobileDashboard
                             FROM vtiger_account a
                             LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                             LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                            WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                            WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                             GROUP BY a.accountid, a.accountname
                             HAVING ticket_count > 0
                             ORDER BY ticket_count DESC
@@ -546,7 +547,7 @@ class MobileDashboard
                 FROM vtiger_account a
                 INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry
                 HAVING total_tickets > 0
                 ORDER BY total_tickets DESC
@@ -583,7 +584,7 @@ class MobileDashboard
                 LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
                 LEFT JOIN vtiger_users u ON ce.smownerid = u.id
                 WHERE ce.deleted = 0
-                AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                 ORDER BY ce.createdtime DESC
                 LIMIT ?";
 
@@ -613,7 +614,7 @@ class MobileDashboard
                 FROM vtiger_account a
                 LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                WHERE DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
                 AND (a.rating = 'Active' OR a.account_type = 'Customer')
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry, a.rating
                 HAVING ticket_activity_score > 0
@@ -745,7 +746,7 @@ class MobileDashboard
                         SELECT 1 FROM vtiger_ticketcomments tc 
                         WHERE tc.ticketid = tt.ticketid
                     )
-                    AND DATE(ce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                     LIMIT 500
                 ) as response_data";
 
@@ -760,13 +761,13 @@ class MobileDashboard
      */
     private function calculateAverageResolutionTime()
     {
-        // OPTIMIZED: Only last 7 days instead of 30 to reduce calculation load
+        // OPTIMIZED: Only last 7 days instead of 30 to reduce calculation load - Fixed for index usage
         $sql = "SELECT AVG(TIMESTAMPDIFF(HOUR, ce.createdtime, ce.modifiedtime)) as avg_resolution
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
                 AND tt.status = 'Closed'
-                AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                 LIMIT 1000";
 
         $result = $this->db->fetchOne($sql);
@@ -807,7 +808,7 @@ class MobileDashboard
                     INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                     WHERE ce.deleted = 0
                     AND tt.status = 'Closed'
-                    AND DATE(ce.modifiedtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                 ) as resolution_data";
 
         $result = $this->db->fetchOne($sql);
