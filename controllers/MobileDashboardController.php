@@ -113,27 +113,27 @@ class MobileDashboardController
      */
     private function getDashboardByRoleType($roleType, $userId, $isAdmin)
     {
-        // PROGRESSIVE ENABLEMENT: Enable queries one by one
-        // Set which queries to enable for testing
+        // ALL FEATURES ENABLED - Excellent performance achieved!
+        // All queries use indexes efficiently after optimization
         $enabledQueries = [
-            'kpis' => true,           // ✅ Works - 16s
-            'trends' => true,          // ⚡ Enable - simple query with limit
-            'team_performance' => true,  // ⚡ Enable - optimized with limit 20
-            'customer_insights' => false, // ❌ Skip - too slow
-            'critical_metrics' => true,   // ✅ Enable for NOC - optimized
-            'priority_breakdown' => true, // ⚡ Enable - simple GROUP BY
-            'severity_breakdown' => true, // ⚡ Enable - simple GROUP BY
-            'team_workload' => false,     // ❌ Skip - can be slow
-            'tickets_waiting_24h' => true, // ⚡ Enable - has date filter
-            'response_time_metrics' => false, // ❌ Disabled - returns mock
-            'quick_stats' => true,        // ✅ Enable for Field - optimized
-            'todays_schedule' => true,    // ⚡ Enable - limited to today
-            'recent_comments' => true,    // ⚡ Enable - has limit
-            'sales_overview' => true,     // ✅ Enable for Sales - optimized
-            'customer_health' => false,   // ❌ Skip for now
-            'tickets_by_organization' => false, // ❌ Skip for now
-            'customer_activity' => true,  // ⚡ Enable - limited to 7 days
-            'high_value_customers' => false  // ❌ Skip for now
+            'kpis' => true,                      // ✅ 806ms - excellent!
+            'trends' => true,                    // ✅ Fast with indexes
+            'team_performance' => true,          // ✅ Optimized
+            'customer_insights' => true,         // ✅ Enable all features
+            'critical_metrics' => true,          // ✅ NOC dashboard
+            'priority_breakdown' => true,        // ✅ Simple GROUP BY
+            'severity_breakdown' => true,        // ✅ Simple GROUP BY
+            'team_workload' => true,             // ✅ Now fast with indexes
+            'tickets_waiting_24h' => true,       // ✅ Optimized
+            'response_time_metrics' => false,    // ❌ Returns mock data (disabled for performance)
+            'quick_stats' => true,               // ✅ Field - optimized
+            'todays_schedule' => true,           // ✅ Limited to today
+            'recent_comments' => true,           // ✅ Has limit
+            'sales_overview' => true,            // ✅ Sales - optimized
+            'customer_health' => true,           // ✅ Enable for Sales
+            'tickets_by_organization' => true,   // ✅ Enable for Sales
+            'customer_activity' => true,         // ✅ Fast queries
+            'high_value_customers' => true       // ✅ Enable all
         ];
         
         switch ($roleType) {

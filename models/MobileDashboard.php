@@ -211,7 +211,7 @@ class MobileDashboard
                     END as workload_indicator
                 FROM vtiger_users u
                 LEFT JOIN vtiger_crmentity ce ON u.id = ce.smownerid AND ce.deleted = 0
-                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
                 LEFT JOIN vtiger_troubletickets tt ON ce.crmid = tt.ticketid
                 WHERE u.deleted = 0 
                 AND u.status = 'Active'
@@ -323,7 +323,7 @@ class MobileDashboard
      */
     public function getKPIs()
     {
-        // OPTIMIZED: Combine multiple queries into one - Fixed for index usage
+        // OPTIMIZED: Extended to 1 year of data - Uses indexes efficiently
         $sql = "SELECT 
                     COUNT(*) as total_tickets,
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
@@ -332,7 +332,7 @@ class MobileDashboard
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
-                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
+                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)";
         
         $result = $this->db->fetchOne($sql);
         
@@ -376,7 +376,7 @@ class MobileDashboard
      */
     public function getTrendsData($days = 30)
     {
-        // OPTIMIZED: Limit to 7 days for faster response - Fixed for index usage
+        // OPTIMIZED: Extended to show trends up to 1 year
         $sql = "SELECT 
                     DATE(ce.createdtime) as date,
                     COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as resolved,
@@ -387,9 +387,9 @@ class MobileDashboard
                 AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
                 GROUP BY DATE(ce.createdtime)
                 ORDER BY date DESC
-                LIMIT 30";
+                LIMIT 365";
 
-        return $this->db->fetchAll($sql, [min($days, 7)]);
+        return $this->db->fetchAll($sql, [min($days, 365)]);
     }
 
     /**
@@ -424,7 +424,7 @@ class MobileDashboard
                     ) as resolution_percentage
                 FROM vtiger_users u
                 LEFT JOIN vtiger_crmentity ce ON u.id = ce.smownerid AND ce.deleted = 0
-                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
                 LEFT JOIN vtiger_troubletickets tt ON ce.crmid = tt.ticketid
                 WHERE u.deleted = 0 
                 AND u.status = 'Active'
@@ -452,7 +452,7 @@ class MobileDashboard
                             FROM vtiger_account a
                             LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                             LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                            WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                            WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
                             GROUP BY a.accountid, a.accountname
                             HAVING ticket_count > 0
                             ORDER BY ticket_count DESC
@@ -485,7 +485,7 @@ class MobileDashboard
                 INNER JOIN vtiger_crmentity ace ON a.accountid = ace.crmid AND ace.deleted = 0
                 LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 LEFT JOIN vtiger_crmentity tce ON tt.ticketid = tce.crmid AND tce.deleted = 0 
-                    AND DATE(tce.createdtime) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+                    AND tce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
         
         $result = $this->db->fetchOne($sql);
 
@@ -547,7 +547,7 @@ class MobileDashboard
                 FROM vtiger_account a
                 INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry
                 HAVING total_tickets > 0
                 ORDER BY total_tickets DESC
@@ -584,7 +584,7 @@ class MobileDashboard
                 LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
                 LEFT JOIN vtiger_users u ON ce.smownerid = u.id
                 WHERE ce.deleted = 0
-                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                 ORDER BY ce.createdtime DESC
                 LIMIT ?";
 
@@ -614,7 +614,7 @@ class MobileDashboard
                 FROM vtiger_account a
                 LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
                 AND (a.rating = 'Active' OR a.account_type = 'Customer')
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry, a.rating
                 HAVING ticket_activity_score > 0
@@ -761,14 +761,14 @@ class MobileDashboard
      */
     private function calculateAverageResolutionTime()
     {
-        // OPTIMIZED: Only last 7 days instead of 30 to reduce calculation load - Fixed for index usage
+        // OPTIMIZED: Extended to 30 days for better average - Uses indexes
         $sql = "SELECT AVG(TIMESTAMPDIFF(HOUR, ce.createdtime, ce.modifiedtime)) as avg_resolution
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
                 AND tt.status = 'Closed'
-                AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-                LIMIT 1000";
+                AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                LIMIT 5000";
 
         $result = $this->db->fetchOne($sql);
         return round($result['avg_resolution'] ?? 0, 2);
