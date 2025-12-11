@@ -472,30 +472,30 @@ class MobileDashboard
 
         // Get tickets by category - Now enabled with optimized query
         $sqlCategory = "SELECT 
-                            tt.ticketcategories as category,
+                            tt.category,
                             COUNT(*) as count
                         FROM vtiger_troubletickets tt
                         INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                         WHERE ce.deleted = 0
                         AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-                        AND tt.ticketcategories IS NOT NULL
-                        AND tt.ticketcategories != ''
-                        GROUP BY tt.ticketcategories
+                        AND tt.category IS NOT NULL
+                        AND tt.category != ''
+                        GROUP BY tt.category
                         ORDER BY count DESC
                         LIMIT 10";
         $ticketsByCategory = $this->db->fetchAll($sqlCategory);
 
         // Get tickets by severity - Now enabled with optimized query
         $sqlSeverity = "SELECT 
-                            tt.ticketseverities as severity,
+                            tt.severity,
                             COUNT(*) as count
                         FROM vtiger_troubletickets tt
                         INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                         WHERE ce.deleted = 0
                         AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-                        AND tt.ticketseverities IS NOT NULL
-                        AND tt.ticketseverities != ''
-                        GROUP BY tt.ticketseverities
+                        AND tt.severity IS NOT NULL
+                        AND tt.severity != ''
+                        GROUP BY tt.severity
                         ORDER BY count DESC";
         $ticketsBySeverity = $this->db->fetchAll($sqlSeverity);
 
