@@ -22,25 +22,36 @@ class MobileDashboard
      */
     public function getQuickStats($userId)
     {
+        // DEBUG: Log the user_id being queried
+        error_log("DEBUG getQuickStats: userId = " . $userId);
+        
         // OPTIMIZED: Combine 4 queries into 1 - Fixed to use index
         $sql = "SELECT 
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as my_open_tickets,
                     COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress,
                     COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') AND tt.status NOT IN ('Closed') THEN 1 END) as high_priority,
-                    COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= CURDATE() AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 1 END) as closed_today
+                    COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= CURDATE() AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 1 END) as closed_today,
+                    COUNT(*) as total_tickets_for_user
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
                 AND ce.smownerid = ?";
         
         $result = $this->db->fetchOne($sql, [$userId]);
+        
+        // DEBUG: Log the result
+        error_log("DEBUG getQuickStats result: " . json_encode($result));
 
-        return [
+        $stats = [
             'my_open_tickets' => (int)($result['my_open_tickets'] ?? 0),
             'in_progress' => (int)($result['in_progress'] ?? 0),
             'high_priority' => (int)($result['high_priority'] ?? 0),
-            'closed_today' => (int)($result['closed_today'] ?? 0)
+            'closed_today' => (int)($result['closed_today'] ?? 0),
+            'total_tickets' => (int)($result['total_tickets_for_user'] ?? 0)  // DEBUG field
         ];
+        
+        error_log("DEBUG getQuickStats returning: " . json_encode($stats));
+        return $stats;
     }
 
     /**
