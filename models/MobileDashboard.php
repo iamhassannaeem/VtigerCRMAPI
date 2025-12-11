@@ -399,9 +399,20 @@ class MobileDashboard
      */
     public function getPriorityTrends($days = 30)
     {
-        // OPTIMIZED: Skip this query for now - can be added later with caching
-        // This is expensive with GROUP BY on both date and priority
-        return [];
+        // Get priority trends for last 30 days - Now optimized with proper indexes
+        $sql = "SELECT 
+                    DATE(ce.createdtime) as date,
+                    tt.priority,
+                    COUNT(*) as count
+                FROM vtiger_troubletickets tt
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                WHERE ce.deleted = 0
+                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                GROUP BY DATE(ce.createdtime), tt.priority
+                ORDER BY date DESC, priority
+                LIMIT 300";
+        
+        return $this->db->fetchAll($sql, [min($days, 30)]);
     }
 
     /**
@@ -459,11 +470,39 @@ class MobileDashboard
                             LIMIT 10";
         $topCustomers = $this->db->fetchAll($sqlTopCustomers);
 
-        // Skip category and severity for performance - can be added later with caching
+        // Get tickets by category - Now enabled with optimized query
+        $sqlCategory = "SELECT 
+                            tt.ticketcategories as category,
+                            COUNT(*) as count
+                        FROM vtiger_troubletickets tt
+                        INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                        WHERE ce.deleted = 0
+                        AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                        AND tt.ticketcategories IS NOT NULL
+                        AND tt.ticketcategories != ''
+                        GROUP BY tt.ticketcategories
+                        ORDER BY count DESC
+                        LIMIT 10";
+        $ticketsByCategory = $this->db->fetchAll($sqlCategory);
+
+        // Get tickets by severity - Now enabled with optimized query
+        $sqlSeverity = "SELECT 
+                            tt.ticketseverities as severity,
+                            COUNT(*) as count
+                        FROM vtiger_troubletickets tt
+                        INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                        WHERE ce.deleted = 0
+                        AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                        AND tt.ticketseverities IS NOT NULL
+                        AND tt.ticketseverities != ''
+                        GROUP BY tt.ticketseverities
+                        ORDER BY count DESC";
+        $ticketsBySeverity = $this->db->fetchAll($sqlSeverity);
+
         return [
             'top_customers' => $topCustomers,
-            'tickets_by_category' => [],
-            'tickets_by_severity' => []
+            'tickets_by_category' => $ticketsByCategory,
+            'tickets_by_severity' => $ticketsBySeverity
         ];
     }
 
@@ -520,10 +559,27 @@ class MobileDashboard
                             LIMIT 10";
         $highPriority = $this->db->fetchAll($sqlHighPriority);
 
-        // Skip at-risk customers for now - too expensive
+        // Get customers at risk - Now enabled (multiple open tickets, unresolved for >7 days)
+        $sqlAtRisk = "SELECT 
+                        a.accountname,
+                        COUNT(DISTINCT tt.ticketid) as open_tickets,
+                        MAX(DATEDIFF(CURDATE(), ce.createdtime)) as oldest_ticket_days,
+                        COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') THEN 1 END) as critical_count
+                    FROM vtiger_account a
+                    INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
+                    INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                    WHERE ce.deleted = 0
+                    AND tt.status NOT IN ('Closed')
+                    AND ce.createdtime <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    GROUP BY a.accountid, a.accountname
+                    HAVING open_tickets >= 3 OR oldest_ticket_days >= 14
+                    ORDER BY open_tickets DESC, oldest_ticket_days DESC
+                    LIMIT 10";
+        $customersAtRisk = $this->db->fetchAll($sqlAtRisk);
+
         return [
             'high_priority_customers' => $highPriority,
-            'customers_at_risk' => []
+            'customers_at_risk' => $customersAtRisk
         ];
     }
 
