@@ -53,11 +53,15 @@ class Comment
      */
     public function addComment($ticketId, $comment, $userId)
     {
+        // Get current time in Pakistan timezone (Asia/Karachi)
+        $pakistanTime = new DateTime('now', new DateTimeZone('Asia/Karachi'));
+        $createdTime = $pakistanTime->format('Y-m-d H:i:s');
+        
         $sql = "INSERT INTO vtiger_ticketcomments 
                 (ticketid, comments, ownerid, ownertype, createdtime)
-                VALUES (?, ?, ?, 'user', NOW())";
+                VALUES (?, ?, ?, 'user', ?)";
 
-        $this->db->execute($sql, [$ticketId, $comment, $userId]);
+        $this->db->execute($sql, [$ticketId, $comment, $userId, $createdTime]);
 
         // Get the created comment
         $commentId = $this->db->lastInsertId();
