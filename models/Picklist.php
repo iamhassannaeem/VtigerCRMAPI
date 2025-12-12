@@ -115,7 +115,7 @@ class Picklist
                     color,
                     sortorderid
                 FROM vtiger_ticketcategories
-                WHERE presence = 0
+                WHERE presence = 1
                 ORDER BY sortorderid ASC";
 
         return $this->db->fetchAll($sql);
