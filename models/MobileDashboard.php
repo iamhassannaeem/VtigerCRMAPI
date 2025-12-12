@@ -25,6 +25,11 @@ class MobileDashboard
         // DEBUG: Log the user_id being queried
         error_log("DEBUG getQuickStats: userId = " . $userId);
         
+        // DEBUG: Test query - count all tickets for this user
+        $testSql = "SELECT COUNT(*) as test_count FROM vtiger_crmentity WHERE smownerid = ? AND deleted = 0";
+        $testResult = $this->db->fetchOne($testSql, [$userId]);
+        error_log("DEBUG getQuickStats: Test count query returned: " . json_encode($testResult));
+        
         // OPTIMIZED: Combine 4 queries into 1 - Fixed to use index
         $sql = "SELECT 
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as my_open_tickets,
