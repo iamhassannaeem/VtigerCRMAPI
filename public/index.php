@@ -184,6 +184,21 @@ $router->get('/picklists/organization-priority', function() {
     $controller->organizationPriority();
 });
 
+// DEBUG: JWT decode endpoint
+$router->get('/debug/jwt', function() {
+    $token = JWT::extractToken();
+    if (!$token) {
+        echo json_encode(['success' => false, 'message' => 'No token provided']);
+        return;
+    }
+    $payload = JWT::validateToken($token);
+    echo json_encode([
+        'success' => true,
+        'token' => substr($token, 0, 50) . '...',
+        'payload' => $payload
+    ]);
+});
+
 // Health check route
 $router->get('/', function() {
     echo json_encode([
@@ -193,6 +208,7 @@ $router->get('/', function() {
         'endpoints' => [
             'POST /auth/login' => 'User authentication',
             'GET /auth/verify' => 'Verify JWT token',
+            'GET /debug/jwt' => 'Debug JWT contents',
             'GET /dashboard' => 'Dashboard statistics',
             'GET /mobile/dashboard' => 'Mobile role-based dashboard',
             'GET /tickets' => 'List all tickets',
