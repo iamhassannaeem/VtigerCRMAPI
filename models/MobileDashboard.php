@@ -34,7 +34,7 @@ class MobileDashboard
         $sql = "SELECT 
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as my_open_tickets,
                     COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress,
-                    COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') AND tt.status NOT IN ('Closed') THEN 1 END) as high_priority,
+                    COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') AND tt.status NOT IN ('Closed') THEN 1 END) as `high_priority`,
                     COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= CURDATE() AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 1 END) as closed_today,
                     COUNT(*) as total_tickets_for_user
                 FROM vtiger_troubletickets tt
@@ -50,7 +50,7 @@ class MobileDashboard
         $stats = [
             'my_open_tickets' => (int)($result['my_open_tickets'] ?? 0),
             'in_progress' => (int)($result['in_progress'] ?? 0),
-            'high_priority' => (int)($result['high_priority'] ?? 0),
+            'high_priority' => (int)($result['high_priority'] ?? 0),  // Fixed: escaped in query
             'closed_today' => (int)($result['closed_today'] ?? 0),
             'total_tickets' => (int)($result['total_tickets_for_user'] ?? 0)  // DEBUG field
         ];
