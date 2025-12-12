@@ -27,6 +27,7 @@ class TicketController
         try {
             $userId = $auth['user_id'];
             $isAdmin = $auth['is_admin'];
+            $roleType = $auth['role_type'] ?? 'Others';
 
             // Get query parameters
             $filters = [
@@ -37,8 +38,11 @@ class TicketController
                 'offset' => $_GET['offset'] ?? 0
             ];
 
+            // NOC, Management, and Sales users can see all tickets
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
+
             // Get tickets
-            $tickets = $this->ticketModel->getTickets($filters, $userId, $isAdmin);
+            $tickets = $this->ticketModel->getTickets($filters, $userId, $canSeeAllTickets);
 
             echo json_encode([
                 'success' => true,
@@ -68,9 +72,13 @@ class TicketController
         try {
             $userId = $auth['user_id'];
             $isAdmin = $auth['is_admin'];
+            $roleType = $auth['role_type'] ?? 'Others';
+
+            // NOC, Management, and Sales users can see all tickets
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
 
             // Get ticket details
-            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $isAdmin);
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets);
 
             if (!$ticket) {
                 http_response_code(404);
@@ -292,9 +300,13 @@ class TicketController
         try {
             $userId = $auth['user_id'];
             $isAdmin = $auth['is_admin'];
+            $roleType = $auth['role_type'] ?? 'Others';
+
+            // NOC, Management, and Sales users can see all tickets
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
 
             // Verify ticket exists and user has access
-            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $isAdmin);
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets);
 
             if (!$ticket) {
                 http_response_code(404);
@@ -336,9 +348,13 @@ class TicketController
         try {
             $userId = $auth['user_id'];
             $isAdmin = $auth['is_admin'];
+            $roleType = $auth['role_type'] ?? 'Others';
+
+            // NOC, Management, and Sales users can see all tickets
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
 
             // Verify ticket exists and user has access
-            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $isAdmin);
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets);
 
             if (!$ticket) {
                 http_response_code(404);
