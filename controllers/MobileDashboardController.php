@@ -169,7 +169,7 @@ class MobileDashboardController
             
             case 'Others':
             default:
-                return $this->getOthersDashboard($userId);
+                return $this->getOthersDashboard($userId, $startDate, $endDate);
         }
     }
     
@@ -258,13 +258,25 @@ class MobileDashboardController
             default:
                 return [
                     'my_tickets_summary' => [
-                        'total_assigned' => 10,
-                        'open' => 5,
-                        'in_progress' => 3,
-                        'closed' => 2
+                        'open_tickets' => 5,
+                        'in_progress_tickets' => 3,
+                        'wait_for_response_tickets' => 2,
+                        'closed_tickets' => 10,
+                        'date_range' => [
+                            'start_date' => date('Y-m-01', strtotime('first day of last month')),
+                            'end_date' => date('Y-m-t', strtotime('last day of last month'))
+                        ]
                     ],
-                    'status_breakdown' => [],
-                    'recent_activity' => []
+                    'status_breakdown' => [
+                        ['status' => 'Open', 'count' => 5],
+                        ['status' => 'In Progress', 'count' => 3],
+                        ['status' => 'Wait For Response', 'count' => 2],
+                        ['status' => 'Closed', 'count' => 10]
+                    ],
+                    'recent_activity' => [
+                        'recent_tickets' => [],
+                        'recent_comments' => []
+                    ]
                 ];
         }
     }
@@ -456,14 +468,16 @@ class MobileDashboardController
     /**
      * Get Others/Normal role dashboard
      * @param int $userId
+     * @param string|null $startDate
+     * @param string|null $endDate
      * @return array
      */
-    private function getOthersDashboard($userId)
+    private function getOthersDashboard($userId, $startDate = null, $endDate = null)
     {
         return [
-            'my_tickets_summary' => $this->dashboardModel->getMyTicketsSummary($userId),
-            'status_breakdown' => $this->dashboardModel->getStatusBreakdown($userId),
-            'recent_activity' => $this->dashboardModel->getRecentActivity($userId)
+            'my_tickets_summary' => $this->dashboardModel->getMyTicketsSummary($userId, $startDate, $endDate),
+            'status_breakdown' => $this->dashboardModel->getStatusBreakdown($userId, $startDate, $endDate),
+            'recent_activity' => $this->dashboardModel->getRecentActivity($userId, $startDate, $endDate)
         ];
     }
 

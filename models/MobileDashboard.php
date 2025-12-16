@@ -801,31 +801,70 @@ class MobileDashboard
      * @param int $userId
      * @return array
      */
-    public function getMyTicketsSummary($userId)
+    /**
+     * Get my tickets summary for Others role
+     * @param int $userId
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
+     * @return array
+     */
+    public function getMyTicketsSummary($userId, $startDate = null, $endDate = null)
     {
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
         $sql = "SELECT 
-                    COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
-                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets,
-                    COUNT(*) as total_tickets
+                    COUNT(CASE WHEN tt.status = 'Open' THEN 1 END) as open_tickets,
+                    COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
+                    COUNT(CASE WHEN tt.status IN ('Wait For Response', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
-                AND ce.smownerid = ?";
+                AND ce.smownerid = ?
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?";
 
-        return $this->db->fetchOne($sql, [$userId]) ?? [
-            'open_tickets' => 0,
-            'closed_tickets' => 0,
-            'total_tickets' => 0
+        $result = $this->db->fetchOne($sql, [$userId, $startDate, $endDateTime]);
+
+        return [
+            'open_tickets' => (int)($result['open_tickets'] ?? 0),
+            'in_progress_tickets' => (int)($result['in_progress_tickets'] ?? 0),
+            'wait_for_response_tickets' => (int)($result['wait_for_response_tickets'] ?? 0),
+            'closed_tickets' => (int)($result['closed_tickets'] ?? 0),
+            'date_range' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ]
         ];
     }
 
     /**
      * Get status breakdown for Others role
      * @param int $userId
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
      * @return array
      */
-    public function getStatusBreakdown($userId)
+    public function getStatusBreakdown($userId, $startDate = null, $endDate = null)
     {
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
         $sql = "SELECT 
                     tt.status,
                     COUNT(*) as count
@@ -833,19 +872,53 @@ class MobileDashboard
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
                 AND ce.smownerid = ?
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?
                 GROUP BY tt.status
                 ORDER BY count DESC";
 
-        return $this->db->fetchAll($sql, [$userId]);
+        $result = $this->db->fetchAll($sql, [$userId, $startDate, $endDateTime]);
+        
+        // Ensure "In Progress" status is included even if count is 0
+        $statuses = [];
+        $hasInProgress = false;
+        foreach ($result as $row) {
+            $statuses[] = $row;
+            if ($row['status'] === 'In Progress') {
+                $hasInProgress = true;
+            }
+        }
+        
+        // If "In Progress" is not in the results, add it with count 0
+        if (!$hasInProgress) {
+            $statuses[] = [
+                'status' => 'In Progress',
+                'count' => 0
+            ];
+        }
+        
+        return $statuses;
     }
 
     /**
      * Get recent activity for Others role
      * @param int $userId
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
      * @return array
      */
-    public function getRecentActivity($userId)
+    public function getRecentActivity($userId, $startDate = null, $endDate = null)
     {
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
         // Recent tickets
         $sqlTickets = "SELECT 
                            tt.ticketid,
@@ -859,26 +932,33 @@ class MobileDashboard
                        INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                        WHERE ce.deleted = 0 
                        AND ce.smownerid = ?
+                       AND ce.createdtime >= ?
+                       AND ce.createdtime <= ?
                        ORDER BY ce.createdtime DESC
                        LIMIT 5";
-        $recentTickets = $this->db->fetchAll($sqlTickets, [$userId]);
+        $recentTickets = $this->db->fetchAll($sqlTickets, [$userId, $startDate, $endDateTime]);
 
-        // Recent comments
+        // Recent comments - Include author name by joining with vtiger_users
         $sqlComments = "SELECT 
                             tc.commentid,
                             tc.ticketid,
                             tc.comments,
                             tc.createdtime,
+                            tc.ownerid,
                             tt.ticket_no,
+                            CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as author_name,
                             'comment' as type
                         FROM vtiger_ticketcomments tc
                         INNER JOIN vtiger_troubletickets tt ON tc.ticketid = tt.ticketid
                         INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                        LEFT JOIN vtiger_users u ON tc.ownerid = u.id
                         WHERE ce.deleted = 0 
                         AND ce.smownerid = ?
+                        AND tc.createdtime >= ?
+                        AND tc.createdtime <= ?
                         ORDER BY tc.createdtime DESC
                         LIMIT 5";
-        $recentComments = $this->db->fetchAll($sqlComments, [$userId]);
+        $recentComments = $this->db->fetchAll($sqlComments, [$userId, $startDate, $endDateTime]);
 
         return [
             'recent_tickets' => $recentTickets,
