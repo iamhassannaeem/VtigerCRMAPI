@@ -159,7 +159,7 @@ class MobileDashboardController
                 return $this->getFieldDashboard($userId, $enabledQueries);
             
             case 'NOC':
-                return $this->getNocDashboard($userId, $isAdmin, $enabledQueries);
+                return $this->getNocDashboard($userId, $isAdmin, $enabledQueries, $startDate, $endDate);
             
             case 'Management':
                 return $this->getManagementDashboard($userId, $isAdmin, $enabledQueries, $startDate, $endDate);
@@ -198,9 +198,13 @@ class MobileDashboardController
                 return [
                     'critical_metrics' => [
                         'total_open_tickets' => 25,
-                        'unassigned_tickets' => 5,
-                        'critical_issues' => 2,
-                        'avg_response_time_hours' => 0
+                        'in_progress_tickets' => 5,
+                        'wait_for_response_tickets' => 2,
+                        'closed_tickets' => 50,
+                        'date_range' => [
+                            'start_date' => date('Y-m-01', strtotime('first day of last month')),
+                            'end_date' => date('Y-m-t', strtotime('last day of last month'))
+                        ]
                     ],
                     'priority_breakdown' => [],
                     'severity_breakdown' => [],
@@ -332,15 +336,26 @@ class MobileDashboardController
      * @param int $userId
      * @param bool $isAdmin
      * @param array $enabled
+     * @param string|null $startDate
+     * @param string|null $endDate
      * @return array
      */
-    private function getNocDashboard($userId, $isAdmin, $enabled = [])
+    private function getNocDashboard($userId, $isAdmin, $enabled = [], $startDate = null, $endDate = null)
     {
         $data = [];
         
         $data['critical_metrics'] = ($enabled['critical_metrics'] ?? false) 
-            ? $this->dashboardModel->getCriticalMetrics()
-            : ['total_open_tickets' => 0, 'unassigned_tickets' => 0, 'critical_issues' => 0, 'avg_response_time_hours' => 0];
+            ? $this->dashboardModel->getCriticalMetrics($startDate, $endDate)
+            : [
+                'total_open_tickets' => 0, 
+                'in_progress_tickets' => 0, 
+                'wait_for_response_tickets' => 0, 
+                'closed_tickets' => 0,
+                'date_range' => [
+                    'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
+                    'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
+                ]
+            ];
         
         $data['priority_breakdown'] = ($enabled['priority_breakdown'] ?? false) 
             ? $this->dashboardModel->getPriorityBreakdown() : [];

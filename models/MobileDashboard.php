@@ -115,28 +115,51 @@ class MobileDashboard
      * Get critical metrics for NOC role
      * @return array
      */
-    public function getCriticalMetrics()
+    /**
+     * Get critical metrics for NOC role
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
+     * @return array
+     */
+    public function getCriticalMetrics($startDate = null, $endDate = null)
     {
-        // OPTIMIZED: Combine 3 queries into 1
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Get ticket counts by status for the date range
+        // Mapping:
+        // unassigned_tickets -> in_progress_tickets (status = 'In Progress')
+        // critical_issues -> wait_for_response_tickets (status = 'Wait For Response')
+        // avg_response_time_hours -> closed_tickets (status = 'Closed')
         $sql = "SELECT 
-                    COUNT(*) as total_open_tickets,
-                    COUNT(CASE WHEN ce.smownerid IS NULL OR ce.smownerid = 0 THEN 1 END) as unassigned_tickets,
-                    COUNT(CASE WHEN tt.severity = 'Critical' THEN 1 END) as critical_issues
+                    COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as total_open_tickets,
+                    COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
+                    COUNT(CASE WHEN tt.status IN ('Wait For Response', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
-                AND tt.status NOT IN ('Closed')";
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?";
         
-        $result = $this->db->fetchOne($sql);
-
-        // Average Response Time (simplified - skip for now due to performance)
-        $avgResponseTime = 0; // $this->calculateAverageResponseTime(); - Disabled for performance
+        $result = $this->db->fetchOne($sql, [$startDate, $endDateTime]);
 
         return [
             'total_open_tickets' => (int)($result['total_open_tickets'] ?? 0),
-            'unassigned_tickets' => (int)($result['unassigned_tickets'] ?? 0),
-            'critical_issues' => (int)($result['critical_issues'] ?? 0),
-            'avg_response_time_hours' => $avgResponseTime
+            'in_progress_tickets' => (int)($result['in_progress_tickets'] ?? 0),  // In Progress tickets count
+            'wait_for_response_tickets' => (int)($result['wait_for_response_tickets'] ?? 0),  // Wait For Response tickets count
+            'closed_tickets' => (int)($result['closed_tickets'] ?? 0),  // Closed tickets count
+            'date_range' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ]
         ];
     }
 
