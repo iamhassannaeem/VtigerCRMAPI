@@ -165,7 +165,7 @@ class MobileDashboardController
                 return $this->getManagementDashboard($userId, $isAdmin, $enabledQueries, $startDate, $endDate);
             
             case 'Sales':
-                return $this->getSalesDashboard($userId, $isAdmin, $enabledQueries);
+                return $this->getSalesDashboard($userId, $isAdmin, $enabledQueries, $startDate, $endDate);
             
             case 'Others':
             default:
@@ -412,15 +412,26 @@ class MobileDashboardController
      * @param int $userId
      * @param bool $isAdmin
      * @param array $enabled
+     * @param string|null $startDate
+     * @param string|null $endDate
      * @return array
      */
-    private function getSalesDashboard($userId, $isAdmin, $enabled = [])
+    private function getSalesDashboard($userId, $isAdmin, $enabled = [], $startDate = null, $endDate = null)
     {
         $data = [];
         
         $data['sales_overview'] = ($enabled['sales_overview'] ?? false) 
-            ? $this->dashboardModel->getSalesOverview()
-            : ['total_customers' => 0, 'new_this_month' => 0, 'active_customers' => 0, 'customers_with_open_tickets' => 0];
+            ? $this->dashboardModel->getSalesOverview($startDate, $endDate)
+            : [
+                'total_customers' => 0, 
+                'active_customers' => 0, 
+                'new_this_month' => 0, 
+                'customers_with_open_tickets' => 0,
+                'date_range' => [
+                    'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
+                    'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
+                ]
+            ];
         
         $data['customer_health'] = ($enabled['customer_health'] ?? false) 
             ? $this->dashboardModel->getCustomerHealth()

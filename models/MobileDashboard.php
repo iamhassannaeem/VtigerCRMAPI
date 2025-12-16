@@ -596,27 +596,57 @@ class MobileDashboard
      * Get sales overview
      * @return array
      */
-    public function getSalesOverview()
+    /**
+     * Get Sales overview - Shows ticket counts by status
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
+     * @return array
+     */
+    public function getSalesOverview($startDate = null, $endDate = null)
     {
-        // OPTIMIZED: Combine 4 queries into 1
-        $sql = "SELECT 
-                    COUNT(DISTINCT a.accountid) as total_customers,
-                    COUNT(DISTINCT CASE WHEN MONTH(ace.createdtime) = MONTH(CURDATE()) AND YEAR(ace.createdtime) = YEAR(CURDATE()) THEN a.accountid END) as new_this_month,
-                    COUNT(DISTINCT CASE WHEN tce.crmid IS NOT NULL THEN a.accountid END) as active_customers,
-                    COUNT(DISTINCT CASE WHEN tt.status NOT IN ('Closed') THEN a.accountid END) as customers_with_open_tickets
-                FROM vtiger_account a
-                INNER JOIN vtiger_crmentity ace ON a.accountid = ace.crmid AND ace.deleted = 0
-                LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
-                LEFT JOIN vtiger_crmentity tce ON tt.ticketid = tce.crmid AND tce.deleted = 0 
-                    AND tce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)";
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
         
-        $result = $this->db->fetchOne($sql);
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Get ticket counts by status for the date range
+        // Mapping:
+        // total_customers -> open tickets count
+        // active_customers -> in progress tickets count
+        // new_this_month -> wait for response tickets count
+        // customers_with_open_tickets -> closed tickets count
+        $sql = "SELECT 
+                    COUNT(CASE WHEN tt.status = 'Open' THEN 1 END) as open_tickets,
+                    COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
+                    COUNT(CASE WHEN tt.status IN ('Wait For Response', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets
+                FROM vtiger_troubletickets tt
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                WHERE ce.deleted = 0
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?";
+        
+        $result = $this->db->fetchOne($sql, [$startDate, $endDateTime]);
+        
+        $openTickets = (int)($result['open_tickets'] ?? 0);
+        $inProgressTickets = (int)($result['in_progress_tickets'] ?? 0);
+        $waitForResponseTickets = (int)($result['wait_for_response_tickets'] ?? 0);
+        $closedTickets = (int)($result['closed_tickets'] ?? 0);
 
         return [
-            'total_customers' => (int)($result['total_customers'] ?? 0),
-            'new_this_month' => (int)($result['new_this_month'] ?? 0),
-            'active_customers' => (int)($result['active_customers'] ?? 0),
-            'customers_with_open_tickets' => (int)($result['customers_with_open_tickets'] ?? 0)
+            'total_customers' => $openTickets,                    // Shows: Open tickets count
+            'active_customers' => $inProgressTickets,            // Shows: In Progress tickets count
+            'new_this_month' => $waitForResponseTickets,          // Shows: Wait For Response tickets count
+            'customers_with_open_tickets' => $closedTickets,     // Shows: Closed tickets count
+            'date_range' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ]
         ];
     }
 
