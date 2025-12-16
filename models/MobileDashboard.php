@@ -321,53 +321,58 @@ class MobileDashboard
 
     /**
      * Get KPIs for Management role
+     * @param string|null $startDate Date range start (Y-m-d format, defaults to previous month start)
+     * @param string|null $endDate Date range end (Y-m-d format, defaults to previous month end)
      * @return array
      */
-    public function getKPIs()
+    public function getKPIs($startDate = null, $endDate = null)
     {
-        // OPTIMIZED: Extended to 1 year of data - Uses indexes efficiently
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        // Ensure dates are in correct format
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        
+        // Add time to end date to include the full day
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Get 4 status counts based on date range
+        // 1. total_tickets -> open tickets (status NOT IN 'Closed')
+        // 2. open_tickets -> in progress tickets (status = 'In Progress')
+        // 3. resolution_rate -> wait for response tickets (need to check status)
+        // 4. avg_resolution_time -> closed tickets (status = 'Closed')
         $sql = "SELECT 
-                    COUNT(*) as total_tickets,
                     COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
-                    COUNT(CASE WHEN tt.status = 'Closed' AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as closed_last_30,
-                    COUNT(CASE WHEN ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as created_last_30
+                    COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
+                    COUNT(CASE WHEN tt.status IN ('Open', 'New', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets,
+                    COUNT(*) as total_tickets
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
-                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)";
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?";
         
-        $result = $this->db->fetchOne($sql);
+        $result = $this->db->fetchOne($sql, [$startDate, $endDateTime]);
         
-        $totalTickets = (int)($result['total_tickets'] ?? 0);
         $openTickets = (int)($result['open_tickets'] ?? 0);
-        $closedLast30 = (int)($result['closed_last_30'] ?? 0);
-        $createdLast30 = (int)($result['created_last_30'] ?? 0);
-
-        // Resolution Rate (last 30 days)
-        $resolutionRate = $createdLast30 > 0 
-            ? round(($closedLast30 / $createdLast30) * 100, 2) 
-            : 0;
-
-        // Average Resolution Time (simplified)
-        $avgResolutionTime = $this->calculateAverageResolutionTime();
-
-        // Skip expensive customer satisfaction calculation
-        $customerSatisfaction = [
-            'score' => 'N/A',
-            'percentage' => 0,
-            'distribution' => [
-                'high' => 0,
-                'medium' => 0,
-                'low' => 0
-            ]
-        ];
+        $inProgressTickets = (int)($result['in_progress_tickets'] ?? 0);
+        $waitForResponseTickets = (int)($result['wait_for_response_tickets'] ?? 0);
+        $closedTickets = (int)($result['closed_tickets'] ?? 0);
 
         return [
-            'total_tickets' => $totalTickets,
-            'open_tickets' => $openTickets,
-            'resolution_rate' => $resolutionRate,
-            'avg_resolution_time_hours' => $avgResolutionTime,
-            'customer_satisfaction' => $customerSatisfaction
+            'total_tickets' => $openTickets,              // Shows: Open tickets count
+            'open_tickets' => $inProgressTickets,         // Shows: In Progress tickets count
+            'resolution_rate' => $waitForResponseTickets,  // Shows: Wait for Response tickets count
+            'avg_resolution_time_hours' => $closedTickets, // Shows: Closed tickets count
+            'date_range' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ]
         ];
     }
 
@@ -451,55 +456,72 @@ class MobileDashboard
 
     /**
      * Get customer insights for Management role
+     * @param string|null $startDate Date range start
+     * @param string|null $endDate Date range end
      * @return array
      */
-    public function getCustomerInsights()
+    public function getCustomerInsights($startDate = null, $endDate = null)
     {
-        // OPTIMIZED: Only top customers, limited to 7 days for speed
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Only show customers that have OPEN tickets (not closed)
         $sqlTopCustomers = "SELECT 
                                 a.accountid,
                                 a.accountname,
                                 COUNT(tt.ticketid) as ticket_count,
                                 COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
-                                COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') THEN 1 END) as high_priority_tickets
+                                COUNT(CASE WHEN tt.priority IN ('High', 'Urgent') AND tt.status NOT IN ('Closed') THEN 1 END) as high_priority_tickets
                             FROM vtiger_account a
-                            LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
-                            LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
-                            WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                            INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
+                            INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                            WHERE ce.deleted = 0
+                            AND ce.createdtime >= ?
+                            AND ce.createdtime <= ?
+                            AND tt.status NOT IN ('Closed')
                             GROUP BY a.accountid, a.accountname
-                            HAVING ticket_count > 0
-                            ORDER BY ticket_count DESC
+                            HAVING open_tickets > 0
+                            ORDER BY open_tickets DESC
                             LIMIT 10";
-        $topCustomers = $this->db->fetchAll($sqlTopCustomers);
+        $topCustomers = $this->db->fetchAll($sqlTopCustomers, [$startDate, $endDateTime]);
 
-        // Get tickets by category - Now enabled with optimized query
+        // Get tickets by category - Fixed: Use date range and ensure category field is correct
         $sqlCategory = "SELECT 
                             tt.category,
                             COUNT(*) as count
                         FROM vtiger_troubletickets tt
                         INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                         WHERE ce.deleted = 0
-                        AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                        AND ce.createdtime >= ?
+                        AND ce.createdtime <= ?
                         AND tt.category IS NOT NULL
                         AND tt.category != ''
                         GROUP BY tt.category
                         ORDER BY count DESC
                         LIMIT 10";
-        $ticketsByCategory = $this->db->fetchAll($sqlCategory);
+        $ticketsByCategory = $this->db->fetchAll($sqlCategory, [$startDate, $endDateTime]);
 
-        // Get tickets by severity - Now enabled with optimized query
+        // Get tickets by severity - Fixed: Use date range and ensure severity field is correct
         $sqlSeverity = "SELECT 
                             tt.severity,
                             COUNT(*) as count
                         FROM vtiger_troubletickets tt
                         INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                         WHERE ce.deleted = 0
-                        AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                        AND ce.createdtime >= ?
+                        AND ce.createdtime <= ?
                         AND tt.severity IS NOT NULL
                         AND tt.severity != ''
                         GROUP BY tt.severity
                         ORDER BY count DESC";
-        $ticketsBySeverity = $this->db->fetchAll($sqlSeverity);
+        $ticketsBySeverity = $this->db->fetchAll($sqlSeverity, [$startDate, $endDateTime]);
 
         return [
             'top_customers' => $topCustomers,
@@ -817,18 +839,29 @@ class MobileDashboard
      * Calculate average resolution time
      * @return float Average resolution time in hours
      */
-    private function calculateAverageResolutionTime()
+    private function calculateAverageResolutionTime($startDate = null, $endDate = null)
     {
-        // OPTIMIZED: Extended to 30 days for better average - Uses indexes
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Calculate average resolution time for closed tickets in date range
         $sql = "SELECT AVG(TIMESTAMPDIFF(HOUR, ce.createdtime, ce.modifiedtime)) as avg_resolution
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
                 AND tt.status = 'Closed'
-                AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?
                 LIMIT 5000";
 
-        $result = $this->db->fetchOne($sql);
+        $result = $this->db->fetchOne($sql, [$startDate, $endDateTime]);
         return round($result['avg_resolution'] ?? 0, 2);
     }
 

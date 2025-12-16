@@ -30,9 +30,23 @@ class MobileDashboardController
             $isAdmin = $auth['is_admin'] ?? false;
             $roleType = $auth['role_type'] ?? 'Others';
 
+            // Get date range parameters (for Management dashboard filtering)
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+            
+            // Validate and set default to previous month if not provided
+            if ($startDate && $endDate) {
+                $startDate = date('Y-m-d', strtotime($startDate));
+                $endDate = date('Y-m-d', strtotime($endDate));
+            } else {
+                // Default to previous month
+                $startDate = date('Y-m-01', strtotime('first day of last month'));
+                $endDate = date('Y-m-t', strtotime('last day of last month'));
+            }
+
             // Cache duration based on role (Management needs longer cache due to complexity)
             $cacheTime = ($roleType === 'Management' || $roleType === 'NOC') ? 600 : 300; // 10 or 5 minutes
-            $cacheKey = "dashboard_{$roleType}_{$userId}";
+            $cacheKey = "dashboard_{$roleType}_{$userId}_" . md5($startDate . $endDate);
             
             // Check cache first
             $cachedData = CacheHelper::get($cacheKey, $cacheTime);
@@ -42,6 +56,7 @@ class MobileDashboardController
                     'success' => true,
                     'role_type' => $roleType,
                     'data' => $cachedData,
+                    'date_range' => ['start_date' => $startDate, 'end_date' => $endDate],
                     'cached' => true,
                     'elapsed_ms' => $elapsed
                 ]);
@@ -49,11 +64,11 @@ class MobileDashboardController
             }
 
             // Log start of data fetch
-            error_log("Dashboard: Fetching {$roleType} data for user {$userId}");
+            error_log("Dashboard: Fetching {$roleType} data for user {$userId} (date range: {$startDate} to {$endDate})");
             $fetchStart = microtime(true);
             
             // Get fresh dashboard data
-            $dashboardData = $this->getDashboardByRoleType($roleType, $userId, $isAdmin);
+            $dashboardData = $this->getDashboardByRoleType($roleType, $userId, $isAdmin, $startDate, $endDate);
             
             $fetchTime = round((microtime(true) - $fetchStart) * 1000, 2);
             error_log("Dashboard: {$roleType} data fetched in {$fetchTime}ms");
@@ -66,6 +81,7 @@ class MobileDashboardController
                 'success' => true,
                 'role_type' => $roleType,
                 'data' => $dashboardData,
+                'date_range' => ['start_date' => $startDate, 'end_date' => $endDate],
                 'cached' => false,
                 'elapsed_ms' => $elapsed,
                 'fetch_time_ms' => $fetchTime
@@ -109,9 +125,11 @@ class MobileDashboardController
      * @param string $roleType
      * @param int $userId
      * @param bool $isAdmin
+     * @param string|null $startDate
+     * @param string|null $endDate
      * @return array
      */
-    private function getDashboardByRoleType($roleType, $userId, $isAdmin)
+    private function getDashboardByRoleType($roleType, $userId, $isAdmin, $startDate = null, $endDate = null)
     {
         // ALL FEATURES ENABLED - Excellent performance achieved!
         // All queries use indexes efficiently after optimization
@@ -144,7 +162,7 @@ class MobileDashboardController
                 return $this->getNocDashboard($userId, $isAdmin, $enabledQueries);
             
             case 'Management':
-                return $this->getManagementDashboard($userId, $isAdmin, $enabledQueries);
+                return $this->getManagementDashboard($userId, $isAdmin, $enabledQueries, $startDate, $endDate);
             
             case 'Sales':
                 return $this->getSalesDashboard($userId, $isAdmin, $enabledQueries);
@@ -332,17 +350,19 @@ class MobileDashboardController
      * @param int $userId
      * @param bool $isAdmin
      * @param array $enabled
+     * @param string|null $startDate
+     * @param string|null $endDate
      * @return array
      */
-    private function getManagementDashboard($userId, $isAdmin, $enabled = [])
+    private function getManagementDashboard($userId, $isAdmin, $enabled = [], $startDate = null, $endDate = null)
     {
         $data = [];
         
-        // KPIs - already optimized
+        // KPIs - with date range filtering
         if ($enabled['kpis'] ?? false) {
             try {
                 $start = microtime(true);
-                $data['kpis'] = $this->dashboardModel->getKPIs();
+                $data['kpis'] = $this->dashboardModel->getKPIs($startDate, $endDate);
                 $elapsed = round((microtime(true) - $start) * 1000, 2);
                 error_log("Management getKPIs took {$elapsed}ms");
             } catch (Exception $e) {
@@ -361,17 +381,18 @@ class MobileDashboardController
             ];
         }
         
-        // Trends
+        // Trends - Only last week (7 days)
         $data['trends'] = [
-            'tickets_created_vs_resolved' => ($enabled['trends'] ?? false) ? $this->dashboardModel->getTrendsData(30) : [],
+            'tickets_created_vs_resolved' => ($enabled['trends'] ?? false) ? $this->dashboardModel->getTrendsData(7) : [],
             'priority_trends' => [] // Always disabled - too slow
         ];
         
         $data['team_performance'] = ($enabled['team_performance'] ?? false) 
             ? $this->dashboardModel->getTeamPerformance() : [];
         
+        // Customer insights - Only customers with open tickets
         $data['customer_insights'] = ($enabled['customer_insights'] ?? false) 
-            ? $this->dashboardModel->getCustomerInsights() 
+            ? $this->dashboardModel->getCustomerInsights($startDate, $endDate) 
             : ['top_customers' => [], 'tickets_by_category' => [], 'tickets_by_severity' => []];
         
         return $data;
