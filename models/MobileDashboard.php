@@ -961,7 +961,8 @@ class MobileDashboard
                        LIMIT 5";
         $recentTickets = $this->db->fetchAll($sqlTickets, [$userId, $startDate, $endDateTime]);
 
-        // Recent comments - Include author name by joining with vtiger_users
+        // Recent comments - Show recent comments on tickets assigned to user (last 30 days, not filtered by date range)
+        // This shows the most recent activity regardless of the date range filter
         $sqlComments = "SELECT 
                             tc.commentid,
                             tc.ticketid,
@@ -977,11 +978,10 @@ class MobileDashboard
                         LEFT JOIN vtiger_users u ON tc.ownerid = u.id
                         WHERE ce.deleted = 0 
                         AND ce.smownerid = ?
-                        AND tc.createdtime >= ?
-                        AND tc.createdtime <= ?
+                        AND tc.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                         ORDER BY tc.createdtime DESC
                         LIMIT 5";
-        $recentComments = $this->db->fetchAll($sqlComments, [$userId, $startDate, $endDateTime]);
+        $recentComments = $this->db->fetchAll($sqlComments, [$userId]);
 
         return [
             'recent_tickets' => $recentTickets,
