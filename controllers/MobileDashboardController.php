@@ -212,14 +212,13 @@ class MobileDashboardController
             case 'Management':
                 return [
                     'kpis' => [
-                        'total_tickets' => 150,
                         'open_tickets' => 45,
-                        'resolution_rate' => 75.5,
-                        'avg_resolution_time_hours' => 0,
-                        'customer_satisfaction' => [
-                            'score' => 'N/A',
-                            'percentage' => 0,
-                            'distribution' => ['high' => 0, 'medium' => 0, 'low' => 0]
+                        'in_progress_tickets' => 30,
+                        'wait_for_response_tickets' => 15,
+                        'closed_tickets' => 150,
+                        'date_range' => [
+                            'start_date' => date('Y-m-01', strtotime('first day of last month')),
+                            'end_date' => date('Y-m-t', strtotime('last day of last month'))
                         ]
                     ],
                     'trends' => [
@@ -368,16 +367,26 @@ class MobileDashboardController
             } catch (Exception $e) {
                 error_log("Management KPIs error: " . $e->getMessage());
                 $data['kpis'] = [
-                    'total_tickets' => 0, 'open_tickets' => 0, 'resolution_rate' => 0,
-                    'avg_resolution_time_hours' => 0,
-                    'customer_satisfaction' => ['score' => 'N/A', 'percentage' => 0, 'distribution' => ['high' => 0, 'medium' => 0, 'low' => 0]]
+                    'open_tickets' => 0,
+                    'in_progress_tickets' => 0,
+                    'wait_for_response_tickets' => 0,
+                    'closed_tickets' => 0,
+                    'date_range' => [
+                        'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
+                        'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
+                    ]
                 ];
             }
         } else {
             $data['kpis'] = [
-                'total_tickets' => 0, 'open_tickets' => 0, 'resolution_rate' => 0,
-                'avg_resolution_time_hours' => 0,
-                'customer_satisfaction' => ['score' => 'N/A', 'percentage' => 0, 'distribution' => ['high' => 0, 'medium' => 0, 'low' => 0]]
+                'open_tickets' => 0,
+                'in_progress_tickets' => 0,
+                'wait_for_response_tickets' => 0,
+                'closed_tickets' => 0,
+                'date_range' => [
+                    'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
+                    'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
+                ]
             ];
         }
         

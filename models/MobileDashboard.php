@@ -342,16 +342,15 @@ class MobileDashboard
         
         // Get 4 status counts based on date range
         // Filter: Tickets created in the date range, then count by current status
-        // 1. total_tickets -> open tickets (status NOT IN 'Closed')
-        // 2. open_tickets -> in progress tickets (status = 'In Progress')
-        // 3. resolution_rate -> wait for response tickets (status IN 'Open', 'New', 'Waiting for Response')
-        // 4. avg_resolution_time -> closed tickets (status = 'Closed')
+        // 1. open_tickets -> tickets with status = 'Open'
+        // 2. in_progress_tickets -> tickets with status = 'In Progress'
+        // 3. wait_for_response_tickets -> tickets with status = 'Wait For Response'
+        // 4. closed_tickets -> tickets with status = 'Closed'
         $sql = "SELECT 
-                    COUNT(CASE WHEN tt.status NOT IN ('Closed') THEN 1 END) as open_tickets,
+                    COUNT(CASE WHEN tt.status = 'Open' THEN 1 END) as open_tickets,
                     COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
-                    COUNT(CASE WHEN tt.status IN ('Open', 'New', 'Waiting for Response', 'Wait For Response') THEN 1 END) as wait_for_response_tickets,
-                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets,
-                    COUNT(*) as total_tickets
+                    COUNT(CASE WHEN tt.status IN ('Wait For Response', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
@@ -365,16 +364,12 @@ class MobileDashboard
         $waitForResponseTickets = (int)($result['wait_for_response_tickets'] ?? 0);
         $closedTickets = (int)($result['closed_tickets'] ?? 0);
 
-        // Return with correct mapping:
-        // total_tickets field -> shows open tickets count
-        // open_tickets field -> shows in progress tickets count
-        // resolution_rate field -> shows wait for response tickets count
-        // avg_resolution_time_hours field -> shows closed tickets count
+        // Return with clear field names matching what they represent
         return [
-            'total_tickets' => $openTickets,              // Field name: total_tickets, Value: Open tickets count
-            'open_tickets' => $inProgressTickets,         // Field name: open_tickets, Value: In Progress tickets count
-            'resolution_rate' => $waitForResponseTickets,  // Field name: resolution_rate, Value: Wait for Response tickets count
-            'avg_resolution_time_hours' => $closedTickets, // Field name: avg_resolution_time_hours, Value: Closed tickets count
+            'open_tickets' => $openTickets,                    // Open tickets count
+            'in_progress_tickets' => $inProgressTickets,       // In Progress tickets count
+            'wait_for_response_tickets' => $waitForResponseTickets,  // Wait For Response tickets count
+            'closed_tickets' => $closedTickets,                // Closed tickets count
             'date_range' => [
                 'start_date' => $startDate,
                 'end_date' => $endDate
