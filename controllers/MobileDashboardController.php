@@ -307,24 +307,13 @@ class MobileDashboardController
     {
         $data = [];
         
-        // KPIs - Ticket counts by status
-        if ($enabled['kpis'] ?? true) {
-            try {
-                $data['kpis'] = $this->dashboardModel->getFieldKPIs($userId, $startDate, $endDate);
-            } catch (Exception $e) {
-                error_log("Field KPIs error: " . $e->getMessage());
-                $data['kpis'] = [
-                    'open_tickets' => 0,
-                    'in_progress_tickets' => 0,
-                    'wait_for_response_tickets' => 0,
-                    'closed_tickets' => 0,
-                    'date_range' => [
-                        'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
-                        'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
-                    ]
-                ];
-            }
-        } else {
+        // KPIs - Ticket counts by status (always included)
+        try {
+            $data['kpis'] = $this->dashboardModel->getFieldKPIs($userId, $startDate, $endDate);
+            error_log("Field KPIs: Successfully fetched for user {$userId}");
+        } catch (Exception $e) {
+            error_log("Field KPIs error: " . $e->getMessage());
+            error_log("Field KPIs stack trace: " . $e->getTraceAsString());
             $data['kpis'] = [
                 'open_tickets' => 0,
                 'in_progress_tickets' => 0,
