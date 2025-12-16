@@ -379,27 +379,38 @@ class MobileDashboard
 
     /**
      * Get trends data for Management role
-     * Shows last N days of created vs resolved tickets
-     * @param int $days
+     * Shows created vs resolved tickets for the specified date range
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
      * @return array
      */
-    public function getTrendsData($days = 7)
+    public function getTrendsData($startDate = null, $endDate = null)
     {
-        // Get created tickets per day (last N days)
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Get created tickets per day (within date range)
         $sqlCreated = "SELECT 
                     DATE(ce.createdtime) as date,
                     COUNT(*) as created
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
-                AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-                AND ce.createdtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?
                 GROUP BY DATE(ce.createdtime)
                 ORDER BY date DESC";
 
-        $createdData = $this->db->fetchAll($sqlCreated, [min($days, 365)]);
+        $createdData = $this->db->fetchAll($sqlCreated, [$startDate, $endDateTime]);
         
-        // Get resolved tickets per day (tickets closed in last N days)
+        // Get resolved tickets per day (tickets closed within date range)
         $sqlResolved = "SELECT 
                     DATE(ce.modifiedtime) as date,
                     COUNT(*) as resolved
@@ -407,12 +418,12 @@ class MobileDashboard
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
                 AND tt.status = 'Closed'
-                AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-                AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                AND ce.modifiedtime >= ?
+                AND ce.modifiedtime <= ?
                 GROUP BY DATE(ce.modifiedtime)
                 ORDER BY date DESC";
 
-        $resolvedData = $this->db->fetchAll($sqlResolved, [min($days, 365)]);
+        $resolvedData = $this->db->fetchAll($sqlResolved, [$startDate, $endDateTime]);
         
         // Combine created and resolved data by date
         $combined = [];

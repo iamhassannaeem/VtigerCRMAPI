@@ -390,9 +390,9 @@ class MobileDashboardController
             ];
         }
         
-        // Trends - Only last week (7 days)
+        // Trends - Filtered by date range
         $data['trends'] = [
-            'tickets_created_vs_resolved' => ($enabled['trends'] ?? false) ? $this->dashboardModel->getTrendsData(7) : [],
+            'tickets_created_vs_resolved' => ($enabled['trends'] ?? false) ? $this->dashboardModel->getTrendsData($startDate, $endDate) : [],
             'priority_trends' => [] // Always disabled - too slow
         ];
         
