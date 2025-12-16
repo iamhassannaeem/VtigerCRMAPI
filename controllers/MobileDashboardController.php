@@ -236,10 +236,14 @@ class MobileDashboardController
             case 'Sales':
                 return [
                     'sales_overview' => [
-                        'total_customers' => 100,
-                        'new_this_month' => 5,
-                        'active_customers' => 50,
-                        'customers_with_open_tickets' => 15
+                        'open_tickets' => 15,
+                        'in_progress_tickets' => 5,
+                        'wait_for_response_tickets' => 8,
+                        'closed_tickets' => 100,
+                        'date_range' => [
+                            'start_date' => date('Y-m-01', strtotime('first day of last month')),
+                            'end_date' => date('Y-m-t', strtotime('last day of last month'))
+                        ]
                     ],
                     'customer_health' => [
                         'high_priority_customers' => [],
@@ -423,10 +427,10 @@ class MobileDashboardController
         $data['sales_overview'] = ($enabled['sales_overview'] ?? false) 
             ? $this->dashboardModel->getSalesOverview($startDate, $endDate)
             : [
-                'total_customers' => 0, 
-                'active_customers' => 0, 
-                'new_this_month' => 0, 
-                'customers_with_open_tickets' => 0,
+                'open_tickets' => 0, 
+                'in_progress_tickets' => 0, 
+                'wait_for_response_tickets' => 0, 
+                'closed_tickets' => 0,
                 'date_range' => [
                     'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
                     'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))

@@ -639,10 +639,10 @@ class MobileDashboard
         $closedTickets = (int)($result['closed_tickets'] ?? 0);
 
         return [
-            'total_customers' => $openTickets,                    // Shows: Open tickets count
-            'active_customers' => $inProgressTickets,            // Shows: In Progress tickets count
-            'new_this_month' => $waitForResponseTickets,          // Shows: Wait For Response tickets count
-            'customers_with_open_tickets' => $closedTickets,     // Shows: Closed tickets count
+            'open_tickets' => $openTickets,                    // Open tickets count
+            'in_progress_tickets' => $inProgressTickets,     // In Progress tickets count
+            'wait_for_response_tickets' => $waitForResponseTickets,  // Wait For Response tickets count
+            'closed_tickets' => $closedTickets,              // Closed tickets count
             'date_range' => [
                 'start_date' => $startDate,
                 'end_date' => $endDate
