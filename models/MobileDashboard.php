@@ -379,25 +379,73 @@ class MobileDashboard
 
     /**
      * Get trends data for Management role
+     * Shows last N days of created vs resolved tickets
      * @param int $days
      * @return array
      */
-    public function getTrendsData($days = 30)
+    public function getTrendsData($days = 7)
     {
-        // OPTIMIZED: Extended to show trends up to 1 year
-        $sql = "SELECT 
+        // Get created tickets per day (last N days)
+        $sqlCreated = "SELECT 
                     DATE(ce.createdtime) as date,
-                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as resolved,
                     COUNT(*) as created
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0
                 AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                AND ce.createdtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
                 GROUP BY DATE(ce.createdtime)
-                ORDER BY date DESC
-                LIMIT 365";
+                ORDER BY date DESC";
 
-        return $this->db->fetchAll($sql, [min($days, 365)]);
+        $createdData = $this->db->fetchAll($sqlCreated, [min($days, 365)]);
+        
+        // Get resolved tickets per day (tickets closed in last N days)
+        $sqlResolved = "SELECT 
+                    DATE(ce.modifiedtime) as date,
+                    COUNT(*) as resolved
+                FROM vtiger_troubletickets tt
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                WHERE ce.deleted = 0
+                AND tt.status = 'Closed'
+                AND ce.modifiedtime >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                AND ce.modifiedtime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                GROUP BY DATE(ce.modifiedtime)
+                ORDER BY date DESC";
+
+        $resolvedData = $this->db->fetchAll($sqlResolved, [min($days, 365)]);
+        
+        // Combine created and resolved data by date
+        $combined = [];
+        
+        // Add created tickets
+        foreach ($createdData as $row) {
+            $date = $row['date'];
+            if (!isset($combined[$date])) {
+                $combined[$date] = [
+                    'date' => $date,
+                    'created' => 0,
+                    'resolved' => 0
+                ];
+            }
+            $combined[$date]['created'] = (int)$row['created'];
+        }
+        
+        // Add resolved tickets
+        foreach ($resolvedData as $row) {
+            $date = $row['date'];
+            if (!isset($combined[$date])) {
+                $combined[$date] = [
+                    'date' => $date,
+                    'created' => 0,
+                    'resolved' => 0
+                ];
+            }
+            $combined[$date]['resolved'] = (int)$row['resolved'];
+        }
+        
+        // Sort by date descending and return as array
+        krsort($combined);
+        return array_values($combined);
     }
 
     /**
