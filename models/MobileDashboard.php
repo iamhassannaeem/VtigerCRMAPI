@@ -46,6 +46,52 @@ class MobileDashboard
     }
 
     /**
+     * Get KPIs for Field role
+     * @param int $userId
+     * @param string|null $startDate Date range start (Y-m-d format)
+     * @param string|null $endDate Date range end (Y-m-d format)
+     * @return array
+     */
+    public function getFieldKPIs($userId, $startDate = null, $endDate = null)
+    {
+        // Default to previous month if not provided
+        if (!$startDate || !$endDate) {
+            $startDate = date('Y-m-01', strtotime('first day of last month'));
+            $endDate = date('Y-m-t', strtotime('last day of last month'));
+        }
+        
+        $startDate = date('Y-m-d', strtotime($startDate));
+        $endDate = date('Y-m-d', strtotime($endDate));
+        $endDateTime = $endDate . ' 23:59:59';
+        
+        // Get ticket counts by status for the date range
+        $sql = "SELECT 
+                    COUNT(CASE WHEN tt.status = 'Open' THEN 1 END) as open_tickets,
+                    COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
+                    COUNT(CASE WHEN tt.status IN ('Wait For Response', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
+                    COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets
+                FROM vtiger_troubletickets tt
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                WHERE ce.deleted = 0 
+                AND ce.smownerid = ?
+                AND ce.createdtime >= ?
+                AND ce.createdtime <= ?";
+        
+        $result = $this->db->fetchOne($sql, [$userId, $startDate, $endDateTime]);
+
+        return [
+            'open_tickets' => (int)($result['open_tickets'] ?? 0),
+            'in_progress_tickets' => (int)($result['in_progress_tickets'] ?? 0),
+            'wait_for_response_tickets' => (int)($result['wait_for_response_tickets'] ?? 0),
+            'closed_tickets' => (int)($result['closed_tickets'] ?? 0),
+            'date_range' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate
+            ]
+        ];
+    }
+
+    /**
      * Get today's schedule for Field role
      * @param int $userId
      * @param int $limit

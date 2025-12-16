@@ -156,7 +156,7 @@ class MobileDashboardController
         
         switch ($roleType) {
             case 'Field':
-                return $this->getFieldDashboard($userId, $enabledQueries);
+                return $this->getFieldDashboard($userId, $enabledQueries, $startDate, $endDate);
             
             case 'NOC':
                 return $this->getNocDashboard($userId, $isAdmin, $enabledQueries, $startDate, $endDate);
@@ -184,6 +184,16 @@ class MobileDashboardController
         switch ($roleType) {
             case 'Field':
                 return [
+                    'kpis' => [
+                        'open_tickets' => 5,
+                        'in_progress_tickets' => 2,
+                        'wait_for_response_tickets' => 1,
+                        'closed_tickets' => 10,
+                        'date_range' => [
+                            'start_date' => date('Y-m-01', strtotime('first day of last month')),
+                            'end_date' => date('Y-m-t', strtotime('last day of last month'))
+                        ]
+                    ],
                     'quick_stats' => [
                         'my_open_tickets' => 5,
                         'in_progress' => 2,
@@ -289,11 +299,43 @@ class MobileDashboardController
      * Get Field role dashboard
      * @param int $userId
      * @param array $enabled
+     * @param string|null $startDate
+     * @param string|null $endDate
      * @return array
      */
-    private function getFieldDashboard($userId, $enabled = [])
+    private function getFieldDashboard($userId, $enabled = [], $startDate = null, $endDate = null)
     {
         $data = [];
+        
+        // KPIs - Ticket counts by status
+        if ($enabled['kpis'] ?? true) {
+            try {
+                $data['kpis'] = $this->dashboardModel->getFieldKPIs($userId, $startDate, $endDate);
+            } catch (Exception $e) {
+                error_log("Field KPIs error: " . $e->getMessage());
+                $data['kpis'] = [
+                    'open_tickets' => 0,
+                    'in_progress_tickets' => 0,
+                    'wait_for_response_tickets' => 0,
+                    'closed_tickets' => 0,
+                    'date_range' => [
+                        'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
+                        'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
+                    ]
+                ];
+            }
+        } else {
+            $data['kpis'] = [
+                'open_tickets' => 0,
+                'in_progress_tickets' => 0,
+                'wait_for_response_tickets' => 0,
+                'closed_tickets' => 0,
+                'date_range' => [
+                    'start_date' => $startDate ?? date('Y-m-01', strtotime('first day of last month')),
+                    'end_date' => $endDate ?? date('Y-m-t', strtotime('last day of last month'))
+                ]
+            ];
+        }
         
         if ($enabled['quick_stats'] ?? false) {
             try {
