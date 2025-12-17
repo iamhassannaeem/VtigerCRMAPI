@@ -46,6 +46,7 @@ require_once __DIR__ . '/../models/Organization.php';
 require_once __DIR__ . '/../models/Contact.php';
 require_once __DIR__ . '/../models/Picklist.php';
 require_once __DIR__ . '/../models/MobileDashboard.php';
+require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../controllers/AuthController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/TicketController.php';
@@ -54,6 +55,7 @@ require_once __DIR__ . '/../controllers/OrganizationController.php';
 require_once __DIR__ . '/../controllers/ContactController.php';
 require_once __DIR__ . '/../controllers/PicklistController.php';
 require_once __DIR__ . '/../controllers/MobileDashboardController.php';
+require_once __DIR__ . '/../controllers/NotificationController.php';
 
 // Initialize router
 $router = new Router();
@@ -172,6 +174,17 @@ $router->get('/picklists/issue-end', function() {
 $router->get('/picklists/categories', function() {
     $controller = new PicklistController();
     $controller->categories();
+});
+
+// Notification Routes
+$router->post('/notifications', function() {
+    $controller = new NotificationController();
+    $controller->create();
+});
+
+$router->get('/notifications', function() {
+    $controller = new NotificationController();
+    $controller->index();
 });
 
 $router->get('/picklists/severities', function() {
