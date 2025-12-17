@@ -108,8 +108,8 @@ class Notification
                 SET is_read = 1, updated_at = NOW()
                 WHERE id = ? AND user_id = ?";
         
-        $this->db->execute($sql, [$notificationId, $userId]);
-        return $this->db->rowCount() > 0;
+        $stmt = $this->db->execute($sql, [$notificationId, $userId]);
+        return $stmt->rowCount() > 0;
     }
 
     /**
@@ -125,8 +125,8 @@ class Notification
                 SET is_read = ?, updated_at = NOW()
                 WHERE id = ? AND user_id = ?";
         
-        $this->db->execute($sql, [$isRead, $notificationId, $userId]);
-        return $this->db->rowCount() > 0;
+        $stmt = $this->db->execute($sql, [$isRead, $notificationId, $userId]);
+        return $stmt->rowCount() > 0;
     }
 
     /**
