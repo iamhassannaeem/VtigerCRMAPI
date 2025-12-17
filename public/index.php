@@ -187,6 +187,11 @@ $router->get('/notifications', function() {
     $controller->index();
 });
 
+$router->put('/notifications/{id}', function($id) {
+    $controller = new NotificationController();
+    $controller->update($id);
+});
+
 $router->get('/picklists/severities', function() {
     $controller = new PicklistController();
     $controller->severities();

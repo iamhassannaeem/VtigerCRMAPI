@@ -113,6 +113,23 @@ class Notification
     }
 
     /**
+     * Update notification read status
+     * @param int $notificationId Notification ID
+     * @param int $userId User ID (for security)
+     * @param int $isRead Read status (0 or 1)
+     * @return bool
+     */
+    public function updateReadStatus($notificationId, $userId, $isRead)
+    {
+        $sql = "UPDATE vtiger_notifications 
+                SET is_read = ?, updated_at = NOW()
+                WHERE id = ? AND user_id = ?";
+        
+        $this->db->execute($sql, [$isRead, $notificationId, $userId]);
+        return $this->db->rowCount() > 0;
+    }
+
+    /**
      * Get unread count for a user
      * @param int $userId User ID
      * @return int Unread count

@@ -163,5 +163,90 @@ class NotificationController
             ]);
         }
     }
+
+    /**
+     * Update notification read status
+     * PUT /notifications/{id}
+     */
+    public function update($id)
+    {
+        $auth = $this->authenticate();
+        if (!$auth) return;
+
+        $userId = $auth['user_id'];
+        $notificationId = (int)$id;
+
+        // Get request data
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        // Validate is_read field
+        if (!isset($data['is_read'])) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => "Field 'is_read' is required"
+            ]);
+            return;
+        }
+
+        $isRead = (int)$data['is_read'];
+        if (!in_array($isRead, [0, 1])) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => "is_read must be 0 or 1"
+            ]);
+            return;
+        }
+
+        // Verify notification exists and belongs to user
+        $notification = $this->notificationModel->getById($notificationId);
+        if (!$notification) {
+            http_response_code(404);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Notification not found'
+            ]);
+            return;
+        }
+
+        if ($notification['user_id'] != $userId) {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'message' => 'You do not have permission to update this notification'
+            ]);
+            return;
+        }
+
+        try {
+            // Update notification
+            $updated = $this->notificationModel->updateReadStatus($notificationId, $userId, $isRead);
+            
+            if (!$updated) {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Failed to update notification'
+                ]);
+                return;
+            }
+
+            // Get updated notification
+            $updatedNotification = $this->notificationModel->getById($notificationId);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Notification updated successfully',
+                'data' => $updatedNotification
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Failed to update notification: ' . $e->getMessage()
+            ]);
+        }
+    }
 }
 
