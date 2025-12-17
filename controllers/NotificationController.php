@@ -29,17 +29,17 @@ class NotificationController
             return false;
         }
 
-        try {
-            $decoded = JWT::decode($token);
-            return $decoded;
-        } catch (Exception $e) {
+        $payload = JWT::validateToken($token);
+        if (!$payload) {
             http_response_code(401);
             echo json_encode([
                 'success' => false,
-                'message' => 'Invalid token: ' . $e->getMessage()
+                'message' => 'Invalid or expired token'
             ]);
             return false;
         }
+        
+        return $payload;
     }
 
     /**
