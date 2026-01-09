@@ -75,6 +75,7 @@ class JWT
         // Split token
         $parts = explode('.', $token);
         if (count($parts) !== 3) {
+            error_log("JWT::validateToken: Invalid token format - expected 3 parts, got " . count($parts));
             return false;
         }
 
@@ -90,17 +91,34 @@ class JWT
         );
 
         if (!hash_equals($signature, $expectedSignature)) {
+            error_log("JWT::validateToken: Signature verification failed");
+            error_log("JWT::validateToken: Secret key length: " . strlen($config['secret_key']));
             return false;
         }
 
         // Decode payload
         $payload = json_decode(self::base64UrlDecode($payloadEncoded), true);
-
-        // Check expiration
-        if (!isset($payload['exp']) || $payload['exp'] < time()) {
+        
+        if (!$payload) {
+            error_log("JWT::validateToken: Failed to decode payload");
             return false;
         }
 
+        // Check expiration
+        $currentTime = time();
+        $expTime = $payload['exp'] ?? 0;
+        
+        if (!isset($payload['exp'])) {
+            error_log("JWT::validateToken: Token missing expiration (exp) claim");
+            return false;
+        }
+        
+        if ($expTime < $currentTime) {
+            error_log("JWT::validateToken: Token expired. Exp: {$expTime}, Current: {$currentTime}, Diff: " . ($currentTime - $expTime) . " seconds");
+            return false;
+        }
+
+        error_log("JWT::validateToken: Token validated successfully for user_id: " . ($payload['user_id'] ?? 'unknown'));
         return $payload;
     }
 
@@ -109,18 +127,48 @@ class JWT
      */
     public static function extractToken()
     {
-        $headers = getallheaders();
+        // Try multiple methods to get headers (for compatibility with different PHP setups)
+        $authHeader = null;
         
-        if (!isset($headers['Authorization'])) {
+        // Method 1: getallheaders() (works on Apache, not always on Nginx/FastCGI)
+        if (function_exists('getallheaders')) {
+            $headers = getallheaders();
+            if (isset($headers['Authorization'])) {
+                $authHeader = $headers['Authorization'];
+            } elseif (isset($headers['authorization'])) {
+                $authHeader = $headers['authorization'];
+            }
+        }
+        
+        // Method 2: $_SERVER (fallback for when getallheaders() doesn't work)
+        if (!$authHeader) {
+            if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+                $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+            } elseif (isset($_SERVER['Authorization'])) {
+                $authHeader = $_SERVER['Authorization'];
+            } elseif (function_exists('apache_request_headers')) {
+                $headers = apache_request_headers();
+                if (isset($headers['Authorization'])) {
+                    $authHeader = $headers['Authorization'];
+                } elseif (isset($headers['authorization'])) {
+                    $authHeader = $headers['authorization'];
+                }
+            }
+        }
+        
+        if (!$authHeader) {
+            error_log("JWT::extractToken: No Authorization header found");
             return null;
         }
 
         // Bearer token format: "Bearer <token>"
-        $authHeader = $headers['Authorization'];
         if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-            return $matches[1];
+            $token = trim($matches[1]);
+            error_log("JWT::extractToken: Token extracted, length: " . strlen($token));
+            return $token;
         }
 
+        error_log("JWT::extractToken: Authorization header found but doesn't match Bearer format");
         return null;
     }
 }

@@ -536,25 +536,47 @@ class MobileDashboardController
         $token = JWT::extractToken();
 
         if (!$token) {
+            error_log("MobileDashboard: No token provided");
             http_response_code(401);
             echo json_encode([
                 'success' => false,
-                'message' => 'No token provided'
+                'message' => 'Authentication failed. Please login again.'
             ]);
             return false;
         }
 
+        error_log("MobileDashboard: Token extracted, length: " . strlen($token));
+        
         $payload = JWT::validateToken($token);
 
         if (!$payload) {
+            error_log("MobileDashboard: Token validation failed");
+            error_log("MobileDashboard: Token preview: " . substr($token, 0, 50) . "...");
+            
+            // Try to decode without validation to see what's wrong
+            $parts = explode('.', $token);
+            if (count($parts) === 3) {
+                try {
+                    $payloadData = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+                    if ($payloadData) {
+                        $currentTime = time();
+                        $expTime = $payloadData['exp'] ?? 0;
+                        error_log("MobileDashboard: Token exp: {$expTime}, Current time: {$currentTime}, Expired: " . ($expTime < $currentTime ? 'YES' : 'NO'));
+                    }
+                } catch (Exception $e) {
+                    error_log("MobileDashboard: Error decoding payload: " . $e->getMessage());
+                }
+            }
+            
             http_response_code(401);
             echo json_encode([
                 'success' => false,
-                'message' => 'Invalid or expired token'
+                'message' => 'Authentication failed. Please login again.'
             ]);
             return false;
         }
 
+        error_log("MobileDashboard: Token validated successfully for user_id: " . ($payload['user_id'] ?? 'unknown'));
         return $payload;
     }
 }
