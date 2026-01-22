@@ -38,11 +38,12 @@ class TicketController
                 'offset' => $_GET['offset'] ?? 0
             ];
 
-            // NOC, Management, and Sales users can see all tickets
-            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
+            // NOC and Management users can see all tickets
+            // Sales users will be filtered by their customers' accounts
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management']);
 
-            // Get tickets
-            $tickets = $this->ticketModel->getTickets($filters, $userId, $canSeeAllTickets);
+            // Get tickets - pass roleType for Sales filtering
+            $tickets = $this->ticketModel->getTickets($filters, $userId, $canSeeAllTickets, $roleType);
 
             echo json_encode([
                 'success' => true,
@@ -74,11 +75,12 @@ class TicketController
             $isAdmin = $auth['is_admin'];
             $roleType = $auth['role_type'] ?? 'Others';
 
-            // NOC, Management, and Sales users can see all tickets
-            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
+            // NOC and Management can see all tickets
+            // Sales users will be filtered by their customers' accounts
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management']);
 
-            // Get ticket details
-            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets);
+            // Get ticket details - pass roleType for Sales filtering
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets, $roleType);
 
             if (!$ticket) {
                 http_response_code(404);
@@ -302,11 +304,12 @@ class TicketController
             $isAdmin = $auth['is_admin'];
             $roleType = $auth['role_type'] ?? 'Others';
 
-            // NOC, Management, and Sales users can see all tickets
-            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
+            // NOC and Management can see all tickets
+            // Sales users will be filtered by their customers' accounts
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management']);
 
-            // Verify ticket exists and user has access
-            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets);
+            // Verify ticket exists and user has access - pass roleType for Sales filtering
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets, $roleType);
 
             if (!$ticket) {
                 http_response_code(404);
@@ -350,11 +353,12 @@ class TicketController
             $isAdmin = $auth['is_admin'];
             $roleType = $auth['role_type'] ?? 'Others';
 
-            // NOC, Management, and Sales users can see all tickets
-            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales']);
+            // NOC and Management can see all tickets
+            // Sales users will be filtered by their customers' accounts
+            $canSeeAllTickets = $isAdmin || in_array($roleType, ['NOC', 'Management']);
 
-            // Verify ticket exists and user has access
-            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets);
+            // Verify ticket exists and user has access - pass roleType for Sales filtering
+            $ticket = $this->ticketModel->getTicketById($ticketId, $userId, $canSeeAllTickets, $roleType);
 
             if (!$ticket) {
                 http_response_code(404);

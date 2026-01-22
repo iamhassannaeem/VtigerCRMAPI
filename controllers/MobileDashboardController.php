@@ -483,7 +483,7 @@ class MobileDashboardController
         $data = [];
         
         $data['sales_overview'] = ($enabled['sales_overview'] ?? false) 
-            ? $this->dashboardModel->getSalesOverview($startDate, $endDate)
+            ? $this->dashboardModel->getSalesOverview($startDate, $endDate, $userId)
             : [
                 'open_tickets' => 0, 
                 'in_progress_tickets' => 0, 
@@ -496,17 +496,17 @@ class MobileDashboardController
             ];
         
         $data['customer_health'] = ($enabled['customer_health'] ?? false) 
-            ? $this->dashboardModel->getCustomerHealth()
+            ? $this->dashboardModel->getCustomerHealth($userId)
             : ['high_priority_customers' => [], 'customers_at_risk' => []];
         
         $data['tickets_by_organization'] = ($enabled['tickets_by_organization'] ?? false) 
-            ? $this->dashboardModel->getTicketsByOrganization() : [];
+            ? $this->dashboardModel->getTicketsByOrganization($userId) : [];
         
         $data['customer_activity'] = ($enabled['customer_activity'] ?? false) 
-            ? $this->dashboardModel->getCustomerActivity(10) : [];
+            ? $this->dashboardModel->getCustomerActivity(10, $userId) : [];
         
         $data['high_value_customers'] = ($enabled['high_value_customers'] ?? false) 
-            ? $this->dashboardModel->getHighValueCustomers() : [];
+            ? $this->dashboardModel->getHighValueCustomers($userId) : [];
         
         return $data;
     }

@@ -669,9 +669,10 @@ class MobileDashboard
      * Get Sales overview - Shows ticket counts by status
      * @param string|null $startDate Date range start (Y-m-d format)
      * @param string|null $endDate Date range end (Y-m-d format)
+     * @param int|null $userId Sales person user ID to filter by their customers
      * @return array
      */
-    public function getSalesOverview($startDate = null, $endDate = null)
+    public function getSalesOverview($startDate = null, $endDate = null, $userId = null)
     {
         // Default to previous month if not provided
         if (!$startDate || !$endDate) {
@@ -684,23 +685,37 @@ class MobileDashboard
         $endDateTime = $endDate . ' 23:59:59';
         
         // Get ticket counts by status for the date range
-        // Mapping:
-        // total_customers -> open tickets count
-        // active_customers -> in progress tickets count
-        // new_this_month -> wait for response tickets count
-        // customers_with_open_tickets -> closed tickets count
+        // Filter by sales person's customers if userId provided
         $sql = "SELECT 
                     COUNT(CASE WHEN tt.status = 'Open' THEN 1 END) as open_tickets,
                     COUNT(CASE WHEN tt.status = 'In Progress' THEN 1 END) as in_progress_tickets,
                     COUNT(CASE WHEN tt.status IN ('Wait For Response', 'Waiting for Response') THEN 1 END) as wait_for_response_tickets,
                     COUNT(CASE WHEN tt.status = 'Closed' THEN 1 END) as closed_tickets
                 FROM vtiger_troubletickets tt
-                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                WHERE ce.deleted = 0
+                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid";
+        
+        $params = [];
+        
+        // Add account filtering for sales person
+        if ($userId) {
+            $sql .= " LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
+                      LEFT JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid";
+        }
+        
+        $sql .= " WHERE ce.deleted = 0
+                AND tt.parent_id IS NOT NULL
                 AND ce.createdtime >= ?
                 AND ce.createdtime <= ?";
+        $params[] = $startDate;
+        $params[] = $endDateTime;
         
-        $result = $this->db->fetchOne($sql, [$startDate, $endDateTime]);
+        // Filter by sales person's customers
+        if ($userId) {
+            $sql .= " AND ce_account.smownerid = ?";
+            $params[] = $userId;
+        }
+        
+        $result = $this->db->fetchOne($sql, $params);
         
         $openTickets = (int)($result['open_tickets'] ?? 0);
         $inProgressTickets = (int)($result['in_progress_tickets'] ?? 0);
@@ -721,10 +736,24 @@ class MobileDashboard
 
     /**
      * Get customer health dashboard
+     * @param int|null $userId Sales person user ID to filter by their customers
      * @return array
      */
-    public function getCustomerHealth()
+    public function getCustomerHealth($userId = null)
     {
+        // Build account filter for sales person
+        $accountJoin = "";
+        $accountFilter = "";
+        $paramsHighPriority = [];
+        $paramsAtRisk = [];
+        
+        if ($userId) {
+            $accountJoin = " INNER JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid";
+            $accountFilter = " AND ce_account.smownerid = ?";
+            $paramsHighPriority[] = $userId;
+            $paramsAtRisk[] = $userId;
+        }
+        
         // OPTIMIZED: Simplified to only high priority customers, limit 10
         $sqlHighPriority = "SELECT 
                                 a.accountid,
@@ -734,16 +763,20 @@ class MobileDashboard
                             FROM vtiger_account a
                             INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                             INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                            $accountJoin
                             WHERE ce.deleted = 0
                             AND tt.status NOT IN ('Closed')
                             AND tt.priority IN ('High', 'Urgent')
+                            AND tt.parent_id IS NOT NULL
+                            $accountFilter
                             GROUP BY a.accountid, a.accountname
                             ORDER BY high_priority_count DESC
                             LIMIT 10";
-        $highPriority = $this->db->fetchAll($sqlHighPriority);
+        $highPriority = $this->db->fetchAll($sqlHighPriority, $paramsHighPriority);
 
         // Get customers at risk - Now enabled (multiple open tickets, unresolved for >7 days)
         $sqlAtRisk = "SELECT 
+                        a.accountid,
                         a.accountname,
                         COUNT(DISTINCT tt.ticketid) as open_tickets,
                         MAX(DATEDIFF(CURDATE(), ce.createdtime)) as oldest_ticket_days,
@@ -751,14 +784,17 @@ class MobileDashboard
                     FROM vtiger_account a
                     INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                     INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                    $accountJoin
                     WHERE ce.deleted = 0
                     AND tt.status NOT IN ('Closed')
+                    AND tt.parent_id IS NOT NULL
                     AND ce.createdtime <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                    $accountFilter
                     GROUP BY a.accountid, a.accountname
                     HAVING open_tickets >= 3 OR oldest_ticket_days >= 14
                     ORDER BY open_tickets DESC, oldest_ticket_days DESC
                     LIMIT 10";
-        $customersAtRisk = $this->db->fetchAll($sqlAtRisk);
+        $customersAtRisk = $this->db->fetchAll($sqlAtRisk, $paramsAtRisk);
 
         return [
             'high_priority_customers' => $highPriority,
@@ -768,11 +804,23 @@ class MobileDashboard
 
     /**
      * Get tickets by organization
+     * @param int|null $userId Sales person user ID to filter by their customers
      * @return array
      */
-    public function getTicketsByOrganization()
+    public function getTicketsByOrganization($userId = null)
     {
-        // OPTIMIZED: Limit to 7 days and top 10 only
+        // Build account filter for sales person
+        $accountJoin = "";
+        $accountFilter = "";
+        $params = [];
+        
+        if ($userId) {
+            $accountJoin = " INNER JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid";
+            $accountFilter = " AND ce_account.smownerid = ?";
+            $params[] = $userId;
+        }
+        
+        // OPTIMIZED: Limit to 90 days and top 10 only
         $sql = "SELECT 
                     a.accountid,
                     a.accountname,
@@ -786,22 +834,37 @@ class MobileDashboard
                 FROM vtiger_account a
                 INNER JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
+                $accountJoin
                 WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                AND tt.parent_id IS NOT NULL
+                $accountFilter
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry
                 HAVING total_tickets > 0
                 ORDER BY total_tickets DESC
                 LIMIT 10";
 
-        return $this->db->fetchAll($sql);
+        return $this->db->fetchAll($sql, $params);
     }
 
     /**
      * Get customer activity feed
      * @param int $limit
+     * @param int|null $userId Sales person user ID to filter by their customers
      * @return array
      */
-    public function getCustomerActivity($limit = 10)
+    public function getCustomerActivity($limit = 10, $userId = null)
     {
+        // Build account filter for sales person
+        $accountJoin = "";
+        $accountFilter = "";
+        $params = [];
+        
+        if ($userId) {
+            $accountJoin = " LEFT JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid";
+            $accountFilter = " AND tt.parent_id IS NOT NULL AND ce_account.smownerid = ?";
+            $params[] = $userId;
+        }
+        
         $sql = "SELECT 
                     tt.ticketid,
                     tt.ticket_no,
@@ -822,20 +885,36 @@ class MobileDashboard
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
                 LEFT JOIN vtiger_users u ON ce.smownerid = u.id
+                $accountJoin
                 WHERE ce.deleted = 0
                 AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                $accountFilter
                 ORDER BY ce.createdtime DESC
                 LIMIT ?";
+        
+        $params[] = (int)$limit;
 
-        return $this->db->fetchAll($sql, [(int)$limit]);
+        return $this->db->fetchAll($sql, $params);
     }
 
     /**
      * Get high value customers
+     * @param int|null $userId Sales person user ID to filter by their customers
      * @return array
      */
-    public function getHighValueCustomers()
+    public function getHighValueCustomers($userId = null)
     {
+        // Build account filter for sales person
+        $accountJoin = "";
+        $accountFilter = "";
+        $params = [];
+        
+        if ($userId) {
+            $accountJoin = " INNER JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid";
+            $accountFilter = " AND ce_account.smownerid = ?";
+            $params[] = $userId;
+        }
+        
         $sql = "SELECT 
                     a.accountid,
                     a.accountname,
@@ -853,14 +932,16 @@ class MobileDashboard
                 FROM vtiger_account a
                 LEFT JOIN vtiger_troubletickets tt ON a.accountid = tt.parent_id
                 LEFT JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid AND ce.deleted = 0
+                $accountJoin
                 WHERE ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
                 AND (a.rating = 'Active' OR a.account_type = 'Customer')
+                $accountFilter
                 GROUP BY a.accountid, a.accountname, a.account_type, a.industry, a.rating
                 HAVING ticket_activity_score > 0
                 ORDER BY ticket_activity_score DESC
                 LIMIT 15";
 
-        return $this->db->fetchAll($sql);
+        return $this->db->fetchAll($sql, $params);
     }
 
     // ==================== OTHERS/NORMAL ROLE METHODS ====================

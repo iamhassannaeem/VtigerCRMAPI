@@ -15,7 +15,7 @@ class Ticket
     /**
      * Get tickets with filters
      */
-    public function getTickets($filters = [], $userId = null, $isAdmin = false)
+    public function getTickets($filters = [], $userId = null, $isAdmin = false, $roleType = 'Others')
     {
         $sql = "SELECT 
                     tt.ticketid,
@@ -35,13 +35,30 @@ class Ticket
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 LEFT JOIN vtiger_users u ON ce.smownerid = u.id
                 LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
-                LEFT JOIN vtiger_contactdetails c ON tt.contact_id = c.contactid
-                WHERE ce.deleted = 0";
+                LEFT JOIN vtiger_contactdetails c ON tt.contact_id = c.contactid";
+
+        // Add account entity join for Sales filtering
+        if ($roleType === 'Sales' && $userId) {
+            $sql .= " LEFT JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid 
+                      AND ce_account.setype = 'Accounts' 
+                      AND ce_account.deleted = 0";
+        }
+
+        $sql .= " WHERE ce.deleted = 0";
 
         $params = [];
 
-        // If not admin, restrict to user's assigned tickets
-        if (!$isAdmin && $userId) {
+        // Sales users: see tickets assigned to them OR tickets from their customers' accounts
+        if ($roleType === 'Sales' && $userId) {
+            $sql .= " AND (
+                ce.smownerid = ? 
+                OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
+            )";
+            $params[] = $userId;
+            $params[] = $userId;
+        }
+        // If not admin and not Sales, restrict to user's assigned tickets
+        elseif (!$isAdmin && $userId) {
             $sql .= " AND ce.smownerid = ?";
             $params[] = $userId;
         }
@@ -79,7 +96,7 @@ class Ticket
     /**
      * Get ticket by ID
      */
-    public function getTicketById($ticketId, $userId = null, $isAdmin = false)
+    public function getTicketById($ticketId, $userId = null, $isAdmin = false, $roleType = 'Others')
     {
         $sql = "SELECT 
                     tt.*,
@@ -117,14 +134,31 @@ class Ticket
                 LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
                 LEFT JOIN vtiger_accountbillads ab ON a.accountid = ab.accountaddressid
                 LEFT JOIN vtiger_accountshipads ash ON a.accountid = ash.accountaddressid
-                LEFT JOIN vtiger_contactdetails c ON tt.contact_id = c.contactid
-                WHERE tt.ticketid = ? 
+                LEFT JOIN vtiger_contactdetails c ON tt.contact_id = c.contactid";
+
+        // Add account entity join for Sales filtering
+        if ($roleType === 'Sales' && $userId) {
+            $sql .= " LEFT JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid 
+                      AND ce_account.setype = 'Accounts' 
+                      AND ce_account.deleted = 0";
+        }
+
+        $sql .= " WHERE tt.ticketid = ? 
                 AND ce.deleted = 0";
 
         $params = [$ticketId];
 
-        // If not admin, restrict to user's assigned tickets
-        if (!$isAdmin && $userId) {
+        // Sales users: see tickets assigned to them OR tickets from their customers' accounts
+        if ($roleType === 'Sales' && $userId) {
+            $sql .= " AND (
+                ce.smownerid = ? 
+                OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
+            )";
+            $params[] = $userId;
+            $params[] = $userId;
+        }
+        // If not admin and not Sales, restrict to user's assigned tickets
+        elseif (!$isAdmin && $userId) {
             $sql .= " AND ce.smownerid = ?";
             $params[] = $userId;
         }
@@ -270,22 +304,42 @@ class Ticket
     /**
      * Get ticket statistics for dashboard
      */
-    public function getTicketStats($userId = null, $isAdmin = false)
+    public function getTicketStats($userId = null, $isAdmin = false, $roleType = 'Others')
     {
         $whereClauses = ["ce.deleted = 0"];
         $params = [];
 
-        if (!$isAdmin && $userId) {
+        // Sales users: see tickets assigned to them OR tickets from their customers' accounts
+        if ($roleType === 'Sales' && $userId) {
+            $whereClauses[] = "(
+                ce.smownerid = ? 
+                OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
+            )";
+            $params[] = $userId;
+            $params[] = $userId;
+        }
+        // If not admin and not Sales, restrict to user's assigned tickets
+        elseif (!$isAdmin && $userId) {
             $whereClauses[] = "ce.smownerid = ?";
             $params[] = $userId;
         }
 
         $whereStr = implode(" AND ", $whereClauses);
 
+        // Add account entity join for Sales filtering in stats queries
+        $accountJoin = "";
+        if ($roleType === 'Sales' && $userId) {
+            $accountJoin = " LEFT JOIN vtiger_account a ON tt.parent_id = a.accountid
+                            LEFT JOIN vtiger_crmentity ce_account ON a.accountid = ce_account.crmid
+                                AND ce_account.setype = 'Accounts'
+                                AND ce_account.deleted = 0";
+        }
+
         // Total open tickets
         $sqlOpen = "SELECT COUNT(*) as count
                     FROM vtiger_troubletickets tt
                     INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                    $accountJoin
                     WHERE $whereStr AND tt.status IN ('Open', 'In Progress', 'Wait For Response')";
         $openResult = $this->db->fetchOne($sqlOpen, $params);
 
@@ -293,6 +347,7 @@ class Ticket
         $sqlClosed = "SELECT COUNT(*) as count
                       FROM vtiger_troubletickets tt
                       INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                      $accountJoin
                       WHERE $whereStr AND tt.status = 'Closed'";
         $closedResult = $this->db->fetchOne($sqlClosed, $params);
 
@@ -300,6 +355,7 @@ class Ticket
         $sqlByStatus = "SELECT tt.status, COUNT(*) as count
                         FROM vtiger_troubletickets tt
                         INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
+                        $accountJoin
                         WHERE $whereStr
                         GROUP BY tt.status";
         $byStatus = $this->db->fetchAll($sqlByStatus, $params);

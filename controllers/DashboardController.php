@@ -27,9 +27,10 @@ class DashboardController
         try {
             $userId = $auth['user_id'];
             $isAdmin = $auth['is_admin'];
+            $roleType = $auth['role_type'] ?? 'Others';
 
-            // Get ticket statistics
-            $stats = $this->ticketModel->getTicketStats($userId, $isAdmin);
+            // Get ticket statistics - pass roleType for Sales filtering
+            $stats = $this->ticketModel->getTicketStats($userId, $isAdmin, $roleType);
 
             // Get recent comments
             $recentComments = $this->commentModel->getRecentComments($userId, $isAdmin, 5);
