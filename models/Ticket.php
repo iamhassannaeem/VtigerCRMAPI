@@ -50,17 +50,61 @@ class Ticket
 
         // Sales users: see tickets assigned to them OR tickets from their customers' accounts
         if ($roleType === 'Sales' && $userId) {
-            $sql .= " AND (
-                ce.smownerid = ? 
-                OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
-            )";
-            $params[] = $userId;
-            $params[] = $userId;
+            // Support both start_date/end_date (new) and date_range_days (backward compatibility)
+            if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+                // Use date range (start_date and end_date)
+                $sql .= " AND ce.createdtime >= ? AND ce.createdtime <= ?
+                AND (
+                    ce.smownerid = ? 
+                    OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
+                )";
+                $params[] = $filters['start_date'];
+                $params[] = $filters['end_date'];
+                $params[] = $userId;
+                $params[] = $userId;
+            } elseif (!empty($filters['date_range_days'])) {
+                // Use days from now (backward compatibility)
+                $dateFilterDays = (int)$filters['date_range_days'];
+                $sql .= " AND ce.createdtime >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                AND (
+                    ce.smownerid = ? 
+                    OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
+                )";
+                $params[] = $dateFilterDays;
+                $params[] = $userId;
+                $params[] = $userId;
+            } else {
+                // Default: last 30 days for Sales (performance optimization)
+                $sql .= " AND ce.createdtime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND (
+                    ce.smownerid = ? 
+                    OR (tt.parent_id IS NOT NULL AND ce_account.smownerid = ? AND ce_account.crmid IS NOT NULL)
+                )";
+                $params[] = $userId;
+                $params[] = $userId;
+            }
         }
         // If not admin and not Sales, restrict to user's assigned tickets
         elseif (!$isAdmin && $userId) {
             $sql .= " AND ce.smownerid = ?";
             $params[] = $userId;
+        }
+
+        // Apply date filtering for all users (optional - only if frontend passes date parameters)
+        // This applies AFTER role-based filtering
+        // Note: Sales users already have date filtering applied above, so skip for them
+        if ($roleType !== 'Sales') {
+            if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+                // Use date range (start_date and end_date)
+                $sql .= " AND ce.createdtime >= ? AND ce.createdtime <= ?";
+                $params[] = $filters['start_date'];
+                $params[] = $filters['end_date'];
+            } elseif (!empty($filters['date_range_days'])) {
+                // Use days from now
+                $dateFilterDays = (int)$filters['date_range_days'];
+                $sql .= " AND ce.createdtime >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+                $params[] = $dateFilterDays;
+            }
         }
 
         // Apply filters

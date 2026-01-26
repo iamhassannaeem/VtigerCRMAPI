@@ -35,7 +35,11 @@ class TicketController
                 'assigned_to' => $_GET['assigned_to'] ?? null,
                 'search' => $_GET['search'] ?? null,
                 'limit' => $_GET['limit'] ?? 50,
-                'offset' => $_GET['offset'] ?? 0
+                'offset' => $_GET['offset'] ?? 0,
+                // Date filtering parameters
+                'start_date' => $_GET['start_date'] ?? null,
+                'end_date' => $_GET['end_date'] ?? null,
+                'date_range_days' => $_GET['date_range_days'] ?? null
             ];
 
             // NOC and Management users can see all tickets
