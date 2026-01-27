@@ -171,6 +171,94 @@ class JWT
         error_log("JWT::extractToken: Authorization header found but doesn't match Bearer format");
         return null;
     }
+
+    /**
+     * Generate refresh token (longer expiration)
+     */
+    public static function generateRefreshToken($payload)
+    {
+        $config = self::getConfig();
+        
+        // Header
+        $header = [
+            'typ' => 'JWT',
+            'alg' => $config['algorithm']
+        ];
+
+        // Add expiration to payload (longer for refresh token)
+        $payload['iat'] = time();
+        $payload['exp'] = time() + ($config['refresh_expiration'] ?? 604800); // Default 7 days
+        $payload['type'] = 'refresh'; // Mark as refresh token
+
+        // Encode header and payload
+        $headerEncoded = self::base64UrlEncode(json_encode($header));
+        $payloadEncoded = self::base64UrlEncode(json_encode($payload));
+
+        // Create signature
+        $signature = hash_hmac(
+            'sha256',
+            "$headerEncoded.$payloadEncoded",
+            $config['secret_key'],
+            true
+        );
+        $signatureEncoded = self::base64UrlEncode($signature);
+
+        // Return JWT
+        return "$headerEncoded.$payloadEncoded.$signatureEncoded";
+    }
+
+    /**
+     * Validate refresh token (allows expired tokens to be checked)
+     */
+    public static function validateRefreshToken($token, $checkExpiration = true)
+    {
+        $config = self::getConfig();
+
+        // Split token
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return false;
+        }
+
+        list($headerEncoded, $payloadEncoded, $signatureEncoded) = $parts;
+
+        // Verify signature
+        $signature = self::base64UrlDecode($signatureEncoded);
+        $expectedSignature = hash_hmac(
+            'sha256',
+            "$headerEncoded.$payloadEncoded",
+            $config['secret_key'],
+            true
+        );
+
+        if (!hash_equals($signature, $expectedSignature)) {
+            return false;
+        }
+
+        // Decode payload
+        $payload = json_decode(self::base64UrlDecode($payloadEncoded), true);
+        
+        if (!$payload) {
+            return false;
+        }
+
+        // Check if it's a refresh token
+        if (($payload['type'] ?? '') !== 'refresh') {
+            return false;
+        }
+
+        // Check expiration if required
+        if ($checkExpiration) {
+            $currentTime = time();
+            $expTime = $payload['exp'] ?? 0;
+            
+            if (!isset($payload['exp']) || $expTime < $currentTime) {
+                return false;
+            }
+        }
+
+        return $payload;
+    }
 }
 
 

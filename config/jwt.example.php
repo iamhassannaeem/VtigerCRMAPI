@@ -8,7 +8,8 @@
 return [
     'secret_key' => 'CHANGE_THIS_TO_A_STRONG_RANDOM_SECRET_KEY',
     'algorithm' => 'HS256',
-    'expiration' => 86400 // 24 hours in seconds
+    'expiration' => 86400, // 24 hours in seconds (access token)
+    'refresh_expiration' => 604800 // 7 days in seconds (refresh token)
 ];
 
 

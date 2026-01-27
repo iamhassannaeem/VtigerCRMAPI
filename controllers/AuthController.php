@@ -3,13 +3,17 @@
  * Authentication Controller
  */
 
+require_once __DIR__ . '/../models/RefreshToken.php';
+
 class AuthController
 {
     private $userModel;
+    private $refreshTokenModel;
 
     public function __construct()
     {
         $this->userModel = new User();
+        $this->refreshTokenModel = new RefreshToken();
     }
 
     /**
@@ -59,13 +63,22 @@ class AuthController
       
             ];
 
-            $token = JWT::generateToken($payload);
+            $accessToken = JWT::generateToken($payload);
+
+            // Generate refresh token
+            $refreshTokenString = $this->refreshTokenModel->generateToken();
+            $refreshTokenExpiry = time() + (7 * 24 * 60 * 60); // 7 days
+            
+            // Store refresh token in database
+            $this->refreshTokenModel->storeToken($user['id'], $refreshTokenString, $refreshTokenExpiry);
 
             // Return success response
             echo json_encode([
                 'success' => true,
                 'message' => 'Login successful',
-                'token' => $token,
+                'token' => $accessToken,
+                'refresh_token' => $refreshTokenString,
+                'expires_in' => 86400, // 24 hours
                 'user' => [
                     'id' => $user['id'],
                     'username' => $user['user_name'],
@@ -124,6 +137,101 @@ class AuthController
             'success' => true,
             'message' => 'Token is valid',
             'user_id' => $payload['user_id']
+        ]);
+    }
+
+    /**
+     * Refresh access token
+     * POST /auth/refresh
+     */
+    public function refresh()
+    {
+        // Get JSON input
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (empty($input['refresh_token'])) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Refresh token is required'
+            ]);
+            return;
+        }
+
+        try {
+            // Validate refresh token
+            $tokenData = $this->refreshTokenModel->validateToken($input['refresh_token']);
+
+            if (!$tokenData || !$tokenData['valid']) {
+                http_response_code(401);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Invalid or expired refresh token'
+                ]);
+                return;
+            }
+
+            // Get user data
+            $user = $this->userModel->getUserById($tokenData['user_id']);
+
+            if (!$user) {
+                http_response_code(404);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'User not found'
+                ]);
+                return;
+            }
+
+            // Check if user is admin
+            $isAdmin = ($user['is_admin'] === 'on');
+
+            // Extract role type
+            $roleInfo = RoleHelper::getRoleType($user['rolename'] ?? '');
+
+            // Generate new access token
+            $payload = [
+                'user_id' => $user['id'],
+                'username' => $user['user_name'],
+                'is_admin' => $isAdmin,
+                'role_type' => $roleInfo['type']
+            ];
+
+            $accessToken = JWT::generateToken($payload);
+
+            // Return new access token
+            echo json_encode([
+                'success' => true,
+                'message' => 'Token refreshed successfully',
+                'token' => $accessToken,
+                'expires_in' => 86400 // 24 hours
+            ]);
+
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Logout - revoke refresh token
+     * POST /auth/logout
+     */
+    public function logout()
+    {
+        // Get JSON input
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        if (!empty($input['refresh_token'])) {
+            $this->refreshTokenModel->revokeToken($input['refresh_token']);
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Logged out successfully'
         ]);
     }
 }

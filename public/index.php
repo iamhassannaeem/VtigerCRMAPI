@@ -56,6 +56,11 @@ require_once __DIR__ . '/../controllers/ContactController.php';
 require_once __DIR__ . '/../controllers/PicklistController.php';
 require_once __DIR__ . '/../controllers/MobileDashboardController.php';
 require_once __DIR__ . '/../controllers/NotificationController.php';
+require_once __DIR__ . '/../controllers/FCMNotificationController.php';
+require_once __DIR__ . '/../models/FCMToken.php';
+require_once __DIR__ . '/../models/RefreshToken.php';
+require_once __DIR__ . '/../models/NotificationLog.php';
+require_once __DIR__ . '/../helpers/Firebase.php';
 
 // Initialize router
 $router = new Router();
@@ -71,6 +76,16 @@ $router->post('/auth/login', function() {
 $router->get('/auth/verify', function() {
     $controller = new AuthController();
     $controller->verify();
+});
+
+$router->post('/auth/refresh', function() {
+    $controller = new AuthController();
+    $controller->refresh();
+});
+
+$router->post('/auth/logout', function() {
+    $controller = new AuthController();
+    $controller->logout();
 });
 
 // Dashboard Routes
@@ -190,6 +205,49 @@ $router->get('/notifications', function() {
 $router->put('/notifications/{id}', function($id) {
     $controller = new NotificationController();
     $controller->update($id);
+});
+
+// FCM Token Registration
+$router->post('/api/fcm/register', function() {
+    $token = JWT::extractToken();
+    if (!$token) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'No token provided']);
+        return;
+    }
+    
+    $payload = JWT::validateToken($token);
+    if (!$payload) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        return;
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (empty($input['fcm_token'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'FCM token is required']);
+        return;
+    }
+    
+    $fcmTokenModel = new FCMToken();
+    $fcmTokenModel->registerToken(
+        $payload['user_id'],
+        $input['fcm_token'],
+        $input['device_type'] ?? null,
+        $input['device_id'] ?? null
+    );
+    
+    echo json_encode([
+        'success' => true,
+        'message' => 'FCM token registered successfully'
+    ]);
+});
+
+// FCM Notification Send Endpoint
+$router->post('/api/notifications/send', function() {
+    $controller = new FCMNotificationController();
+    $controller->send();
 });
 
 $router->get('/picklists/severities', function() {
