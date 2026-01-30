@@ -1,0 +1,264 @@
+{
+  "info": {
+    "name": "Vtiger CRM - Notifications API",
+    "description": "Postman collection for Firebase push notifications",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/vtiger-api/public",
+      "type": "string",
+      "description": "Base URL of the API"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "JWT authentication token (required for FCM token registration)"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "string",
+      "description": "User ID to send notification to"
+    },
+    {
+      "key": "ticket_id",
+      "value": "507823",
+      "type": "string",
+      "description": "Ticket ID for notification"
+    },
+    {
+      "key": "ticket_number",
+      "value": "TT63152",
+      "type": "string",
+      "description": "Ticket number for notification"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Get Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('token', jsonData.token);",
+                  "    pm.collectionVariables.set('user_id', jsonData.user.id);",
+                  "    console.log('Token saved:', jsonData.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login to get JWT token. Required for FCM token registration."
+          }
+        }
+      ]
+    },
+    {
+      "name": "FCM Token Management",
+      "item": [
+        {
+          "name": "Register FCM Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcm_token\": \"dGhpcyBpcyBhbiBmY20gdG9rZW4gZXhhbXBsZQ...\",\n  \"device_type\": \"android\",\n  \"device_id\": \"device_unique_id_123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/fcm/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "fcm", "register"]
+            },
+            "description": "Register or update FCM token for push notifications. This must be called from the mobile app after user login.\n\n**Required Fields:**\n- `fcm_token`: Firebase Cloud Messaging token from the device\n- `device_type`: Optional - 'android', 'ios', or 'web'\n- `device_id`: Optional - Unique device identifier"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Send Notifications",
+      "item": [
+        {
+          "name": "Ticket Assigned Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{user_id}},\n  \"title\": \"New Ticket Assignment\",\n  \"message\": \"Hi ConnecTEL Private Limited, You have been assigned a new ticket #{{ticket_number}} for Mohsin Nasim (Residential).\",\n  \"ticket_id\": {{ticket_id}},\n  \"ticket_number\": \"{{ticket_number}}\",\n  \"type\": \"ticket_assigned\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Send Firebase push notification when a ticket is assigned to a user.\n\n**Note:** This endpoint does NOT require authentication as it's called internally by the CRM system.\n\n**Required Fields:**\n- `user_id`: ID of the user to notify\n- `title`: Notification title\n- `message`: Notification message\n- `ticket_id`: Ticket ID\n- `ticket_number`: Ticket number (e.g., TT63152)\n- `type`: Must be 'ticket_assigned' or 'ticket_updated'"
+          }
+        },
+        {
+          "name": "Ticket Updated Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{user_id}},\n  \"title\": \"Ticket Updated\",\n  \"message\": \"Ticket #{{ticket_number}} has been updated. Status changed to In Progress.\",\n  \"ticket_id\": {{ticket_id}},\n  \"ticket_number\": \"{{ticket_number}}\",\n  \"type\": \"ticket_updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Send Firebase push notification when a ticket is updated (status change, comment added, etc.).\n\n**Note:** This endpoint does NOT require authentication as it's called internally by the CRM system."
+          }
+        },
+        {
+          "name": "Test Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{user_id}},\n  \"title\": \"Test Notification\",\n  \"message\": \"This is a test notification to verify FCM integration is working correctly.\",\n  \"ticket_id\": 12345,\n  \"ticket_number\": \"TT-TEST-001\",\n  \"type\": \"ticket_assigned\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Test endpoint to send a sample notification. Useful for debugging and testing FCM token registration.\n\n**Use Cases:**\n- Verify FCM token is registered correctly\n- Test notification delivery\n- Debug notification issues"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Examples",
+      "item": [
+        {
+          "name": "Example: Ticket Assigned - Real Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"title\": \"New Ticket Assignment\",\n  \"message\": \"Hi ConnecTEL Private Limited, You have been assigned a new ticket #TT63152 for Mohsin Nasim (Residential).\",\n  \"ticket_id\": 507823,\n  \"ticket_number\": \"TT63152\",\n  \"type\": \"ticket_assigned\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Example using real data from your database log entry."
+          }
+        },
+        {
+          "name": "Example: Custom Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"title\": \"Urgent: High Priority Ticket\",\n  \"message\": \"A high priority ticket #TT12345 requires your immediate attention. Customer: ABC Company, Issue: Server Down\",\n  \"ticket_id\": 12345,\n  \"ticket_number\": \"TT12345\",\n  \"type\": \"ticket_assigned\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Example with custom notification message."
+          }
+        }
+      ]
+    }
+  ]
+}

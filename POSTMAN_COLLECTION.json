@@ -514,6 +514,103 @@
       ]
     },
     {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Register FCM Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcm_token\": \"dGhpcyBpcyBhbiBmY20gdG9rZW4gZXhhbXBsZQ...\",\n  \"device_type\": \"android\",\n  \"device_id\": \"device_unique_id_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/fcm/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "fcm", "register"]
+            },
+            "description": "Register or update FCM token for push notifications. Required for receiving notifications on mobile devices."
+          }
+        },
+        {
+          "name": "Send Notification - Ticket Assigned",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"title\": \"New Ticket Assignment\",\n  \"message\": \"Hi ConnecTEL Private Limited, You have been assigned a new ticket #TT63152 for Mohsin Nasim (Residential).\",\n  \"ticket_id\": 507823,\n  \"ticket_number\": \"TT63152\",\n  \"type\": \"ticket_assigned\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Send Firebase push notification when a ticket is assigned to a user. This endpoint does NOT require authentication as it's called internally by the CRM system."
+          }
+        },
+        {
+          "name": "Send Notification - Ticket Updated",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"title\": \"Ticket Updated\",\n  \"message\": \"Ticket #TT63152 has been updated. Status changed to In Progress.\",\n  \"ticket_id\": 507823,\n  \"ticket_number\": \"TT63152\",\n  \"type\": \"ticket_updated\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Send Firebase push notification when a ticket is updated. This endpoint does NOT require authentication as it's called internally by the CRM system."
+          }
+        },
+        {
+          "name": "Send Notification - Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"title\": \"Test Notification\",\n  \"message\": \"This is a test notification to verify FCM integration.\",\n  \"ticket_id\": 12345,\n  \"ticket_number\": \"TT-TEST-001\",\n  \"type\": \"ticket_assigned\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "send"]
+            },
+            "description": "Test endpoint to send a sample notification. Useful for debugging and testing FCM token registration."
+          }
+        }
+      ]
+    },
+    {
       "name": "Health Check",
       "request": {
         "method": "GET",
