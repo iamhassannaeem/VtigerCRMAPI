@@ -136,20 +136,21 @@ class MobileDashboard
     public function getRecentCommentsForField($userId, $limit = 10)
     {
         $sql = "SELECT 
-                    tc.commentid,
-                    tc.ticketid,
-                    tc.comments,
-                    tc.createdtime,
+                    mc.modcommentsid as commentid,
+                    mc.related_to as ticketid,
+                    mc.commentcontent as comments,
+                    ce.createdtime,
                     CONCAT(u.first_name, ' ', u.last_name) as created_by_name,
                     tt.ticket_no,
                     tt.title as ticket_title
-                FROM vtiger_ticketcomments tc
-                LEFT JOIN vtiger_users u ON tc.ownerid = u.id
-                INNER JOIN vtiger_troubletickets tt ON tc.ticketid = tt.ticketid
-                INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                WHERE ce.deleted = 0 
-                AND ce.smownerid = ?
-                ORDER BY tc.createdtime DESC
+                FROM vtiger_modcomments mc
+                INNER JOIN vtiger_crmentity ce ON mc.modcommentsid = ce.crmid AND ce.setype = 'ModComments'
+                LEFT JOIN vtiger_users u ON mc.userid = u.id
+                INNER JOIN vtiger_troubletickets tt ON mc.related_to = tt.ticketid
+                INNER JOIN vtiger_crmentity ce_ticket ON tt.ticketid = ce_ticket.crmid
+                WHERE ce.deleted = 0 AND ce_ticket.deleted = 0
+                AND ce_ticket.smownerid = ?
+                ORDER BY ce.createdtime DESC
                 LIMIT ?";
 
         return $this->db->fetchAll($sql, [$userId, (int)$limit]);
@@ -345,7 +346,7 @@ class MobileDashboard
         
         /*
         // Original query - Too slow without indexes
-        // Re-enable after adding index on vtiger_ticketcomments.ticketid
+        // Re-enable after adding index on vtiger_modcomments.related_to
         $sql = "SELECT 
                     CASE 
                         WHEN response_hours < 1 THEN '< 1 hour'
@@ -360,9 +361,10 @@ class MobileDashboard
                         tt.ticketid,
                         TIMESTAMPDIFF(HOUR, ce.createdtime, 
                             COALESCE(
-                                (SELECT MIN(tc.createdtime) 
-                                 FROM vtiger_ticketcomments tc 
-                                 WHERE tc.ticketid = tt.ticketid),
+                                (SELECT MIN(ce_comment.createdtime) 
+                                 FROM vtiger_modcomments mc_comment
+                                 INNER JOIN vtiger_crmentity ce_comment ON mc_comment.modcommentsid = ce_comment.crmid AND ce_comment.setype = 'ModComments'
+                                 WHERE mc_comment.related_to = tt.ticketid AND ce_comment.deleted = 0),
                                 NOW()
                             )
                         ) as response_hours
@@ -1091,22 +1093,23 @@ class MobileDashboard
         // Recent comments - Show recent comments on tickets assigned to user (last 30 days, not filtered by date range)
         // This shows the most recent activity regardless of the date range filter
         $sqlComments = "SELECT 
-                            tc.commentid,
-                            tc.ticketid,
-                            tc.comments,
-                            tc.createdtime,
-                            tc.ownerid,
+                            mc.modcommentsid as commentid,
+                            mc.related_to as ticketid,
+                            mc.commentcontent as comments,
+                            ce.createdtime,
+                            mc.userid as ownerid,
                             tt.ticket_no,
                             CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as author_name,
                             'comment' as type
-                        FROM vtiger_ticketcomments tc
-                        INNER JOIN vtiger_troubletickets tt ON tc.ticketid = tt.ticketid
-                        INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
-                        LEFT JOIN vtiger_users u ON tc.ownerid = u.id
-                        WHERE ce.deleted = 0 
-                        AND ce.smownerid = ?
-                        AND tc.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-                        ORDER BY tc.createdtime DESC
+                        FROM vtiger_modcomments mc
+                        INNER JOIN vtiger_crmentity ce ON mc.modcommentsid = ce.crmid AND ce.setype = 'ModComments'
+                        INNER JOIN vtiger_troubletickets tt ON mc.related_to = tt.ticketid
+                        INNER JOIN vtiger_crmentity ce_ticket ON tt.ticketid = ce_ticket.crmid
+                        LEFT JOIN vtiger_users u ON mc.userid = u.id
+                        WHERE ce.deleted = 0 AND ce_ticket.deleted = 0
+                        AND ce_ticket.smownerid = ?
+                        AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                        ORDER BY ce.createdtime DESC
                         LIMIT 5";
         $recentComments = $this->db->fetchAll($sqlComments, [$userId]);
 
@@ -1135,16 +1138,18 @@ class MobileDashboard
                 FROM (
                     SELECT 
                         TIMESTAMPDIFF(HOUR, ce.createdtime, 
-                            (SELECT MIN(tc.createdtime) 
-                             FROM vtiger_ticketcomments tc 
-                             WHERE tc.ticketid = tt.ticketid)
+                            (SELECT MIN(ce_comment.createdtime) 
+                             FROM vtiger_modcomments mc_comment
+                             INNER JOIN vtiger_crmentity ce_comment ON mc_comment.modcommentsid = ce_comment.crmid AND ce_comment.setype = 'ModComments'
+                             WHERE mc_comment.related_to = tt.ticketid AND ce_comment.deleted = 0)
                         ) as response_hours
                     FROM vtiger_troubletickets tt
                     INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                     WHERE ce.deleted = 0
                     AND EXISTS (
-                        SELECT 1 FROM vtiger_ticketcomments tc 
-                        WHERE tc.ticketid = tt.ticketid
+                        SELECT 1 FROM vtiger_modcomments mc 
+                        INNER JOIN vtiger_crmentity ce_comment ON mc.modcommentsid = ce_comment.crmid AND ce_comment.setype = 'ModComments'
+                        WHERE mc.related_to = tt.ticketid AND ce_comment.deleted = 0
                     )
                     AND ce.createdtime >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                     LIMIT 500
