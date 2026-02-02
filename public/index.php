@@ -122,6 +122,11 @@ $router->post('/tickets', function() {
     $controller->create();
 });
 
+$router->put('/tickets/{id}', function($id) {
+    $controller = new TicketController();
+    $controller->update($id);
+});
+
 $router->get('/tickets/{id}/comments', function($id) {
     $controller = new TicketController();
     $controller->getComments($id);
@@ -290,6 +295,7 @@ $router->get('/', function() {
             'GET /tickets' => 'List all tickets',
             'GET /tickets/{id}' => 'Get ticket details',
             'POST /tickets' => 'Create new ticket',
+            'PUT /tickets/{id}' => 'Update ticket (Admin and NOC only)',
             'GET /tickets/{id}/comments' => 'Get ticket comments',
             'POST /tickets/{id}/comments' => 'Add comment to ticket',
             'GET /me' => 'Get user profile',

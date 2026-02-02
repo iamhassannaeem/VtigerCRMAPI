@@ -223,7 +223,20 @@ class NotificationController
             // Update notification
             $updated = $this->notificationModel->updateReadStatus($notificationId, $userId, $isRead);
             
-            if (!$updated) {
+            // Get updated notification to verify it exists and check status
+            $updatedNotification = $this->notificationModel->getById($notificationId);
+            
+            if (!$updatedNotification) {
+                http_response_code(404);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Notification not found'
+                ]);
+                return;
+            }
+            
+            // If update returned false but notification exists, check if it's already in the desired state
+            if (!$updated && (int)$updatedNotification['is_read'] != $isRead) {
                 http_response_code(500);
                 echo json_encode([
                     'success' => false,
@@ -232,9 +245,7 @@ class NotificationController
                 return;
             }
 
-            // Get updated notification
-            $updatedNotification = $this->notificationModel->getById($notificationId);
-
+            // Success - return updated notification
             echo json_encode([
                 'success' => true,
                 'message' => 'Notification updated successfully',

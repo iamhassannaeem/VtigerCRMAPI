@@ -20,8 +20,8 @@ class NotificationLog
     public function log($userId, $ticketId, $notificationType, $title, $message, $fcmToken, $status, $errorMessage = null, $fcmMessageId = null)
     {
         $sql = "INSERT INTO notification_logs 
-                (user_id, ticket_id, notification_type, title, message, fcm_token, status, error_message, fcm_message_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                (user_id, ticket_id, notification_type, title, message, fcm_token, status, error_message, fcm_message_id, is_read) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
         
         $this->db->execute($sql, [
             $userId,
