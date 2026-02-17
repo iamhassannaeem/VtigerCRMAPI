@@ -13,6 +13,29 @@ class Ticket
     }
 
     /**
+     * Get user's role name from database
+     * 
+     * @param int $userId
+     * @return string|null Role name or null if not found
+     */
+    private function getUserRoleName($userId)
+    {
+        if (!$userId) {
+            return null;
+        }
+        
+        $sql = "SELECT r.rolename
+                FROM vtiger_users u
+                INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
+                INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
+                WHERE u.id = ? AND u.deleted = 0
+                LIMIT 1";
+        
+        $result = $this->db->fetchOne($sql, [$userId]);
+        return $result['rolename'] ?? null;
+    }
+
+    /**
      * Get tickets with filters
      */
     public function getTickets($filters = [], $userId = null, $isAdmin = false, $roleType = 'Others')
@@ -84,7 +107,50 @@ class Ticket
                 $params[] = $userId;
             }
         }
-        // If not admin and not Sales, restrict to user's assigned tickets
+        // Fiber Manager roles: see tickets assigned to them + their team leads
+        elseif ($roleType === 'Field' && $userId && !$isAdmin) {
+            $roleName = $this->getUserRoleName($userId);
+            
+            // Check if user is a Fiber Manager
+            if ($roleName && (strpos($roleName, 'Fiber Manager') !== false)) {
+                // Get team member user IDs (team leads)
+                $teamMemberIds = RoleHelper::getTeamMemberUserIds($roleName, $this->db);
+                
+                // Include manager's own ID + team lead IDs
+                $allowedUserIds = array_merge([$userId], $teamMemberIds);
+                
+                if (!empty($allowedUserIds)) {
+                    $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
+                    $sql .= " AND ce.smownerid IN ($placeholders)";
+                    $params = array_merge($params, $allowedUserIds);
+                } else {
+                    // Fallback: only manager's tickets if no team members found
+                    $sql .= " AND ce.smownerid = ?";
+                    $params[] = $userId;
+                }
+            }
+            // Wireless Team Lead: see tickets assigned to all Wireless Team Leads (peer sharing)
+            elseif ($roleName === 'Wireless Team Lead') {
+                // Get all user IDs with Wireless Team Lead role (includes current user)
+                $peerUserIds = RoleHelper::getPeerUserIds($roleName, $this->db);
+                
+                if (!empty($peerUserIds)) {
+                    $placeholders = implode(',', array_fill(0, count($peerUserIds), '?'));
+                    $sql .= " AND ce.smownerid IN ($placeholders)";
+                    $params = array_merge($params, $peerUserIds);
+                } else {
+                    // Fallback: only their own tickets if no peers found
+                    $sql .= " AND ce.smownerid = ?";
+                    $params[] = $userId;
+                }
+            }
+            else {
+                // Fiber Team Leads and other Field roles: only their own tickets
+                $sql .= " AND ce.smownerid = ?";
+                $params[] = $userId;
+            }
+        }
+        // If not admin and not Sales and not Field, restrict to user's assigned tickets
         elseif (!$isAdmin && $userId) {
             $sql .= " AND ce.smownerid = ?";
             $params[] = $userId;
@@ -201,7 +267,50 @@ class Ticket
             $params[] = $userId;
             $params[] = $userId;
         }
-        // If not admin and not Sales, restrict to user's assigned tickets
+        // Fiber Manager roles: see tickets assigned to them + their team leads
+        elseif ($roleType === 'Field' && $userId && !$isAdmin) {
+            $roleName = $this->getUserRoleName($userId);
+            
+            // Check if user is a Fiber Manager
+            if ($roleName && (strpos($roleName, 'Fiber Manager') !== false)) {
+                // Get team member user IDs (team leads)
+                $teamMemberIds = RoleHelper::getTeamMemberUserIds($roleName, $this->db);
+                
+                // Include manager's own ID + team lead IDs
+                $allowedUserIds = array_merge([$userId], $teamMemberIds);
+                
+                if (!empty($allowedUserIds)) {
+                    $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
+                    $sql .= " AND ce.smownerid IN ($placeholders)";
+                    $params = array_merge($params, $allowedUserIds);
+                } else {
+                    // Fallback: only manager's tickets if no team members found
+                    $sql .= " AND ce.smownerid = ?";
+                    $params[] = $userId;
+                }
+            }
+            // Wireless Team Lead: see tickets assigned to all Wireless Team Leads (peer sharing)
+            elseif ($roleName === 'Wireless Team Lead') {
+                // Get all user IDs with Wireless Team Lead role (includes current user)
+                $peerUserIds = RoleHelper::getPeerUserIds($roleName, $this->db);
+                
+                if (!empty($peerUserIds)) {
+                    $placeholders = implode(',', array_fill(0, count($peerUserIds), '?'));
+                    $sql .= " AND ce.smownerid IN ($placeholders)";
+                    $params = array_merge($params, $peerUserIds);
+                } else {
+                    // Fallback: only their own tickets if no peers found
+                    $sql .= " AND ce.smownerid = ?";
+                    $params[] = $userId;
+                }
+            }
+            else {
+                // Fiber Team Leads and other Field roles: only their own tickets
+                $sql .= " AND ce.smownerid = ?";
+                $params[] = $userId;
+            }
+        }
+        // If not admin and not Sales and not Field, restrict to user's assigned tickets
         elseif (!$isAdmin && $userId) {
             $sql .= " AND ce.smownerid = ?";
             $params[] = $userId;
@@ -483,7 +592,50 @@ class Ticket
             $params[] = $userId;
             $params[] = $userId;
         }
-        // If not admin and not Sales, restrict to user's assigned tickets
+        // Fiber Manager roles: see tickets assigned to them + their team leads
+        elseif ($roleType === 'Field' && $userId && !$isAdmin) {
+            $roleName = $this->getUserRoleName($userId);
+            
+            // Check if user is a Fiber Manager
+            if ($roleName && (strpos($roleName, 'Fiber Manager') !== false)) {
+                // Get team member user IDs (team leads)
+                $teamMemberIds = RoleHelper::getTeamMemberUserIds($roleName, $this->db);
+                
+                // Include manager's own ID + team lead IDs
+                $allowedUserIds = array_merge([$userId], $teamMemberIds);
+                
+                if (!empty($allowedUserIds)) {
+                    $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
+                    $whereClauses[] = "ce.smownerid IN ($placeholders)";
+                    $params = array_merge($params, $allowedUserIds);
+                } else {
+                    // Fallback: only manager's tickets if no team members found
+                    $whereClauses[] = "ce.smownerid = ?";
+                    $params[] = $userId;
+                }
+            }
+            // Wireless Team Lead: see tickets assigned to all Wireless Team Leads (peer sharing)
+            elseif ($roleName === 'Wireless Team Lead') {
+                // Get all user IDs with Wireless Team Lead role (includes current user)
+                $peerUserIds = RoleHelper::getPeerUserIds($roleName, $this->db);
+                
+                if (!empty($peerUserIds)) {
+                    $placeholders = implode(',', array_fill(0, count($peerUserIds), '?'));
+                    $whereClauses[] = "ce.smownerid IN ($placeholders)";
+                    $params = array_merge($params, $peerUserIds);
+                } else {
+                    // Fallback: only their own tickets if no peers found
+                    $whereClauses[] = "ce.smownerid = ?";
+                    $params[] = $userId;
+                }
+            }
+            else {
+                // Fiber Team Leads and other Field roles: only their own tickets
+                $whereClauses[] = "ce.smownerid = ?";
+                $params[] = $userId;
+            }
+        }
+        // If not admin and not Sales and not Field, restrict to user's assigned tickets
         elseif (!$isAdmin && $userId) {
             $whereClauses[] = "ce.smownerid = ?";
             $params[] = $userId;
