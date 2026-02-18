@@ -58,13 +58,32 @@ class RoleHelper
             'GIS' => 'Others',
         ];
 
-        // Trim role name and check for exact match
+        // Normalize role name: trim and replace multiple spaces with single space
         $roleName = trim($roleName);
+        $roleName = preg_replace('/\s+/', ' ', $roleName); // Normalize whitespace
         
         // Check for exact match first
         if (isset($roleMapping[$roleName])) {
             return [
                 'type' => $roleMapping[$roleName],
+                'base_name' => $roleName,
+                'full_name' => $roleName
+            ];
+        }
+        
+        // Fallback: Try case-insensitive matching for Fiber Manager roles
+        if (preg_match('/Fiber\s+Manager\s*[-]?\s*\d+/i', $roleName)) {
+            return [
+                'type' => 'Field',
+                'base_name' => $roleName,
+                'full_name' => $roleName
+            ];
+        }
+        
+        // Fallback: Try case-insensitive matching for Fiber Team Lead roles
+        if (preg_match('/Fiber\s+Team\s+Lead\s*[-]?\s*\d+/i', $roleName)) {
+            return [
+                'type' => 'Field',
                 'base_name' => $roleName,
                 'full_name' => $roleName
             ];
@@ -102,33 +121,78 @@ class RoleHelper
     /**
      * Get team member user IDs for a manager role
      * 
-     * @param string $managerRoleName Manager role name (e.g., "Fiber Manager - 1")
+     * @param string $managerRoleName Manager role name (e.g., "Fiber Manager - 1", "Fiber Manager-1", "Fiber Manager 1")
      * @param Database $db Database instance
      * @return array Array of user IDs belonging to the corresponding team lead role
      */
     public static function getTeamMemberUserIds($managerRoleName, $db)
     {
-        // Map manager role to team lead role
+        if (empty($managerRoleName)) {
+            return [];
+        }
+        
+        // Normalize the role name: trim and handle variations
+        $normalizedRole = trim($managerRoleName);
+        $normalizedRole = preg_replace('/\s+/', ' ', $normalizedRole); // Normalize whitespace
+        
+        // Check if it's a Fiber Manager role using flexible matching
+        // Handles: "Fiber Manager - 1", "Fiber Manager-1", "Fiber Manager 1", etc.
+        if (preg_match('/Fiber\s+Manager\s*[-]?\s*(\d+)/i', $normalizedRole, $matches)) {
+            $managerNumber = $matches[1]; // Extract the number (1 or 2)
+            
+            // Construct the team lead role name with standard format
+            $teamLeadRole = "Fiber Team Lead - {$managerNumber}";
+            
+            // Query to get all user IDs with the team lead role
+            // Use flexible matching in SQL as well to handle role name variations
+            $sql = "SELECT DISTINCT u.id 
+                    FROM vtiger_users u
+                    INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
+                    INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
+                    WHERE (
+                        r.rolename = ? 
+                        OR r.rolename = ?
+                        OR r.rolename = ?
+                        OR r.rolename LIKE ?
+                    ) 
+                    AND u.deleted = 0 
+                    AND u.status = 'Active'";
+            
+            // Try multiple variations of the team lead role name
+            $teamLeadVariations = [
+                "Fiber Team Lead - {$managerNumber}",  // Standard format
+                "Fiber Team Lead-{$managerNumber}",    // No spaces around dash
+                "Fiber Team Lead {$managerNumber}",     // Space instead of dash
+                "Fiber Team Lead{$managerNumber}"      // No space or dash
+            ];
+            
+            $params = $teamLeadVariations;
+            $params[] = "Fiber Team Lead%{$managerNumber}%"; // LIKE pattern as fallback
+            
+            $results = $db->fetchAll($sql, $params);
+            return array_column($results, 'id');
+        }
+        
+        // Fallback: Try exact match with normalized role name (for backward compatibility)
         $teamMapping = [
             'Fiber Manager - 1' => 'Fiber Team Lead - 1',
             'Fiber Manager - 2' => 'Fiber Team Lead - 2'
         ];
         
-        if (!isset($teamMapping[$managerRoleName])) {
-            return [];
+        if (isset($teamMapping[$normalizedRole])) {
+            $teamLeadRole = $teamMapping[$normalizedRole];
+            
+            $sql = "SELECT DISTINCT u.id 
+                    FROM vtiger_users u
+                    INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
+                    INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
+                    WHERE r.rolename = ? AND u.deleted = 0 AND u.status = 'Active'";
+            
+            $results = $db->fetchAll($sql, [$teamLeadRole]);
+            return array_column($results, 'id');
         }
         
-        $teamLeadRole = $teamMapping[$managerRoleName];
-        
-        // Query to get all user IDs with the team lead role
-        $sql = "SELECT DISTINCT u.id 
-                FROM vtiger_users u
-                INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
-                INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
-                WHERE r.rolename = ? AND u.deleted = 0 AND u.status = 'Active'";
-        
-        $results = $db->fetchAll($sql, [$teamLeadRole]);
-        return array_column($results, 'id');
+        return [];
     }
 
     /**

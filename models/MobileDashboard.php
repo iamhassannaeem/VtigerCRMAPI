@@ -13,6 +13,69 @@ class MobileDashboard
         $this->db = Database::getInstance();
     }
 
+    // ==================== HELPER METHODS ====================
+
+    /**
+     * Get user's role name from database
+     * 
+     * @param int $userId
+     * @return string|null Role name or null if not found
+     */
+    private function getUserRoleName($userId)
+    {
+        if (!$userId) {
+            return null;
+        }
+        
+        $sql = "SELECT r.rolename
+                FROM vtiger_users u
+                INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
+                INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
+                WHERE u.id = ? AND u.deleted = 0
+                LIMIT 1";
+        
+        $result = $this->db->fetchOne($sql, [$userId]);
+        return $result['rolename'] ?? null;
+    }
+
+    /**
+     * Get allowed user IDs for Field role filtering
+     * This ensures dashboard stats match the tickets list query logic
+     * 
+     * @param int $userId
+     * @return array Array of user IDs to filter by
+     */
+    private function getAllowedUserIdsForField($userId)
+    {
+        $roleName = $this->getUserRoleName($userId);
+        
+        if (!$roleName) {
+            return [$userId]; // Fallback to own ID
+        }
+        
+        // Check if user is a Fiber Manager
+        if (strpos($roleName, 'Fiber Manager') !== false) {
+            // Get team member user IDs (team leads)
+            $teamMemberIds = RoleHelper::getTeamMemberUserIds($roleName, $this->db);
+            
+            // Include manager's own ID + team lead IDs
+            return array_merge([$userId], $teamMemberIds);
+        }
+        
+        // Wireless Team Lead: see tickets assigned to all Wireless Team Leads (peer sharing)
+        if ($roleName === 'Wireless Team Lead') {
+            // Get all user IDs with Wireless Team Lead role (includes current user)
+            $peerUserIds = RoleHelper::getPeerUserIds($roleName, $this->db);
+            
+            if (!empty($peerUserIds)) {
+                return $peerUserIds;
+            }
+        }
+        
+        // Fiber Team Leads and other Field roles: only their own tickets
+        return [$userId];
+    }
+
     // ==================== FIELD ROLE METHODS ====================
 
     /**
@@ -22,6 +85,12 @@ class MobileDashboard
      */
     public function getQuickStats($userId)
     {
+        // Get allowed user IDs based on role (for Field role filtering)
+        // This ensures dashboard stats match the tickets list query logic
+        $allowedUserIds = $this->getAllowedUserIdsForField($userId);
+        
+        // Build WHERE clause with user IDs
+        $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
         
         // OPTIMIZED: Combine 4 queries into 1 - Fixed to use index
         // Fixed: Escaped `high_priority` as it's a MySQL reserved word
@@ -33,9 +102,9 @@ class MobileDashboard
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
-                AND ce.smownerid = ?";
+                AND ce.smownerid IN ($placeholders)";
         
-        $result = $this->db->fetchOne($sql, [$userId]);
+        $result = $this->db->fetchOne($sql, $allowedUserIds);
 
         return [
             'my_open_tickets' => (int)($result['my_open_tickets'] ?? 0),
@@ -64,6 +133,13 @@ class MobileDashboard
         $endDate = date('Y-m-d', strtotime($endDate));
         $endDateTime = $endDate . ' 23:59:59';
         
+        // Get allowed user IDs based on role (for Field role filtering)
+        // This ensures dashboard stats match the tickets list query logic
+        $allowedUserIds = $this->getAllowedUserIdsForField($userId);
+        
+        // Build WHERE clause with user IDs
+        $placeholders = implode(',', array_fill(0, count($allowedUserIds), '?'));
+        
         // Get ticket counts by status for the date range
         $sql = "SELECT 
                     COUNT(CASE WHEN tt.status = 'Open' THEN 1 END) as open_tickets,
@@ -73,11 +149,12 @@ class MobileDashboard
                 FROM vtiger_troubletickets tt
                 INNER JOIN vtiger_crmentity ce ON tt.ticketid = ce.crmid
                 WHERE ce.deleted = 0 
-                AND ce.smownerid = ?
+                AND ce.smownerid IN ($placeholders)
                 AND ce.createdtime >= ?
                 AND ce.createdtime <= ?";
         
-        $result = $this->db->fetchOne($sql, [$userId, $startDate, $endDateTime]);
+        $params = array_merge($allowedUserIds, [$startDate, $endDateTime]);
+        $result = $this->db->fetchOne($sql, $params);
 
         return [
             'open_tickets' => (int)($result['open_tickets'] ?? 0),
