@@ -119,11 +119,12 @@ class RoleHelper
     }
 
     /**
-     * Get team member user IDs for a manager role
+     * Get team member user IDs for a manager role (DYNAMIC VERSION)
+     * Uses role hierarchy from database instead of hardcoded patterns
      * 
-     * @param string $managerRoleName Manager role name (e.g., "Fiber Manager - 1", "Fiber Manager-1", "Fiber Manager 1")
+     * @param string $managerRoleName Manager role name (e.g., "Fiber Manager - 1")
      * @param Database $db Database instance
-     * @return array Array of user IDs belonging to the corresponding team lead role
+     * @return array Array of user IDs belonging to child roles under this manager
      */
     public static function getTeamMemberUserIds($managerRoleName, $db)
     {
@@ -131,63 +132,65 @@ class RoleHelper
             return [];
         }
         
-        // Normalize the role name: trim and handle variations
+        // Normalize the role name
         $normalizedRole = trim($managerRoleName);
-        $normalizedRole = preg_replace('/\s+/', ' ', $normalizedRole); // Normalize whitespace
+        $normalizedRole = preg_replace('/\s+/', ' ', $normalizedRole);
         
-        // Check if it's a Fiber Manager role using flexible matching
-        // Handles: "Fiber Manager - 1", "Fiber Manager-1", "Fiber Manager 1", etc.
-        if (preg_match('/Fiber\s+Manager\s*[-]?\s*(\d+)/i', $normalizedRole, $matches)) {
-            $managerNumber = $matches[1]; // Extract the number (1 or 2)
-            
-            // Query to get all user IDs with the team lead role
-            // Based on login response, the exact format is "Fiber Team Lead - 1" (with spaces around dash)
-            $sql = "SELECT DISTINCT u.id 
-                    FROM vtiger_users u
-                    INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
-                    INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
-                    WHERE (
-                        r.rolename = ? 
-                        OR r.rolename = ?
-                        OR r.rolename = ?
-                        OR r.rolename LIKE ?
-                    ) 
-                    AND u.deleted = 0 
-                    AND u.status = 'Active'";
-            
-            // Try multiple variations of the team lead role name
-            // Pass exactly 4 parameters to match the 4 placeholders in SQL
-            $params = [
-                "Fiber Team Lead - {$managerNumber}",  // Standard format (exact match from DB)
-                "Fiber Team Lead-{$managerNumber}",    // No spaces around dash (fallback)
-                "Fiber Team Lead {$managerNumber}",     // Space instead of dash (fallback)
-                "Fiber Team Lead%{$managerNumber}%"     // LIKE pattern as final fallback
-            ];
-            
-            $results = $db->fetchAll($sql, $params);
-            return array_column($results, 'id');
+        // Step 1: Get the manager's roleid from rolename
+        $sql = "SELECT roleid FROM vtiger_role WHERE rolename = ? LIMIT 1";
+        $managerRole = $db->fetchOne($sql, [$normalizedRole]);
+        
+        if (!$managerRole || !isset($managerRole['roleid'])) {
+            return [];
         }
         
-        // Fallback: Try exact match with normalized role name (for backward compatibility)
-        $teamMapping = [
-            'Fiber Manager - 1' => 'Fiber Team Lead - 1',
-            'Fiber Manager - 2' => 'Fiber Team Lead - 2'
+        $managerRoleId = $managerRole['roleid'];
+        
+        // Step 2: Find ALL child roles where parentrole contains the manager's roleid
+        // The parentrole column uses :: delimiter format (e.g., "H1::H2::H10")
+        // We need to find roles where the manager's roleid appears in the path
+        // This handles both immediate children and nested descendants
+        
+        // Using LIKE to find roles where manager's roleid is in the parentrole path
+        // Pattern: parentrole LIKE '%::H10' OR parentrole LIKE 'H10::%' OR parentrole = 'H10'
+        $sql = "SELECT roleid, rolename 
+                FROM vtiger_role 
+                WHERE (
+                    parentrole LIKE ? 
+                    OR parentrole LIKE ?
+                    OR parentrole = ?
+                )";
+        
+        $params = [
+            "%::{$managerRoleId}",      // Paths ending with ::managerRoleId (immediate children)
+            "{$managerRoleId}::%",      // Paths starting with managerRoleId:: (if manager is root)
+            $managerRoleId              // Direct parent (if any)
         ];
         
-        if (isset($teamMapping[$normalizedRole])) {
-            $teamLeadRole = $teamMapping[$normalizedRole];
-            
-            $sql = "SELECT DISTINCT u.id 
-                    FROM vtiger_users u
-                    INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
-                    INNER JOIN vtiger_role r ON u2r.roleid = r.roleid
-                    WHERE r.rolename = ? AND u.deleted = 0 AND u.status = 'Active'";
-            
-            $results = $db->fetchAll($sql, [$teamLeadRole]);
-            return array_column($results, 'id');
+        $childRoles = $db->fetchAll($sql, $params);
+        
+        if (empty($childRoles)) {
+            return [];
         }
         
-        return [];
+        // Step 3: Extract all roleids of child roles
+        $childRoleIds = array_column($childRoles, 'roleid');
+        
+        // Step 4: Get all user IDs with any of these child roles
+        if (empty($childRoleIds)) {
+            return [];
+        }
+        
+        $placeholders = implode(',', array_fill(0, count($childRoleIds), '?'));
+        $sql = "SELECT DISTINCT u.id 
+                FROM vtiger_users u
+                INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
+                WHERE u2r.roleid IN ($placeholders)
+                AND u.deleted = 0 
+                AND u.status = 'Active'";
+        
+        $results = $db->fetchAll($sql, $childRoleIds);
+        return array_column($results, 'id');
     }
 
     /**
