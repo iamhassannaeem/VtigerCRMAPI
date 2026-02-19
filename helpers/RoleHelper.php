@@ -140,11 +140,8 @@ class RoleHelper
         if (preg_match('/Fiber\s+Manager\s*[-]?\s*(\d+)/i', $normalizedRole, $matches)) {
             $managerNumber = $matches[1]; // Extract the number (1 or 2)
             
-            // Construct the team lead role name with standard format
-            $teamLeadRole = "Fiber Team Lead - {$managerNumber}";
-            
             // Query to get all user IDs with the team lead role
-            // Use flexible matching in SQL as well to handle role name variations
+            // Based on login response, the exact format is "Fiber Team Lead - 1" (with spaces around dash)
             $sql = "SELECT DISTINCT u.id 
                     FROM vtiger_users u
                     INNER JOIN vtiger_user2role u2r ON u.id = u2r.userid
@@ -159,15 +156,13 @@ class RoleHelper
                     AND u.status = 'Active'";
             
             // Try multiple variations of the team lead role name
-            $teamLeadVariations = [
-                "Fiber Team Lead - {$managerNumber}",  // Standard format
-                "Fiber Team Lead-{$managerNumber}",    // No spaces around dash
-                "Fiber Team Lead {$managerNumber}",     // Space instead of dash
-                "Fiber Team Lead{$managerNumber}"      // No space or dash
+            // Pass exactly 4 parameters to match the 4 placeholders in SQL
+            $params = [
+                "Fiber Team Lead - {$managerNumber}",  // Standard format (exact match from DB)
+                "Fiber Team Lead-{$managerNumber}",    // No spaces around dash (fallback)
+                "Fiber Team Lead {$managerNumber}",     // Space instead of dash (fallback)
+                "Fiber Team Lead%{$managerNumber}%"     // LIKE pattern as final fallback
             ];
-            
-            $params = $teamLeadVariations;
-            $params[] = "Fiber Team Lead%{$managerNumber}%"; // LIKE pattern as fallback
             
             $results = $db->fetchAll($sql, $params);
             return array_column($results, 'id');
