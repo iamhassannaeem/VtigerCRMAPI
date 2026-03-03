@@ -41,6 +41,22 @@ class TicketController
                 'end_date' => $_GET['end_date'] ?? null,
                 'date_range_days' => $_GET['date_range_days'] ?? null
             ];
+            
+            // Parse assigned_to - support both single and multiple values
+            // Supports: ?assigned_to=5 or ?assigned_to=5,10,15 or ?assigned_to[]=5&assigned_to[]=10
+            if (!empty($filters['assigned_to'])) {
+                // Handle array format (assigned_to[]=5&assigned_to[]=10)
+                if (isset($_GET['assigned_to']) && is_array($_GET['assigned_to'])) {
+                    $filters['assigned_to'] = array_map('trim', $_GET['assigned_to']);
+                }
+                // Handle comma-separated string (assigned_to=5,10,15)
+                elseif (is_string($filters['assigned_to']) && strpos($filters['assigned_to'], ',') !== false) {
+                    $filters['assigned_to'] = array_map('trim', explode(',', $filters['assigned_to']));
+                }
+                // Single value - keep as is (will be converted to array in Ticket model)
+            } else {
+                $filters['assigned_to'] = null;
+            }
 
             // NOC and Management users can see all tickets
             // Sales users will be filtered by their customers' accounts

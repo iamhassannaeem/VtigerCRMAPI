@@ -179,9 +179,86 @@ class Ticket
             $params[] = $filters['status'];
         }
 
-        if (!empty($filters['assigned_to']) && $isAdmin) {
-            $sql .= " AND ce.smownerid = ?";
-            $params[] = $filters['assigned_to'];
+        // Apply assigned_to filter with role-based restrictions (supports multiple user IDs)
+        if (!empty($filters['assigned_to'])) {
+            // Normalize to array - support both single value and multiple values
+            $assignedToUserIds = $filters['assigned_to'];
+            if (!is_array($assignedToUserIds)) {
+                $assignedToUserIds = [(string)$assignedToUserIds];
+            }
+            
+            // Convert all to integers and remove empty/invalid values
+            $assignedToUserIds = array_filter(array_map('intval', $assignedToUserIds), function($id) {
+                return $id > 0; // Only keep positive integers
+            });
+            $assignedToUserIds = array_values(array_unique($assignedToUserIds));
+            
+            if (empty($assignedToUserIds)) {
+                // Invalid input - skip filter
+            } else {
+                // Get allowed user IDs based on role
+                $allowedUserIds = [];
+                
+                if ($isAdmin || in_array($roleType, ['NOC', 'Management', 'Sales'])) {
+                    // Admin/Management/NOC/Sales: can filter by any user
+                    $allowedUserIds = $assignedToUserIds;
+                } elseif ($roleType === 'Field' && $userId) {
+                    $roleName = $this->getUserRoleName($userId);
+                    
+                    if ($roleName && (strpos($roleName, 'Fiber Manager') !== false)) {
+                        // Fiber Manager: can filter by themselves + team members
+                        $teamMemberIds = RoleHelper::getTeamMemberUserIds($roleName, $this->db);
+                        if (!is_array($teamMemberIds)) {
+                            $teamMemberIds = [];
+                        }
+                        $teamMemberIds = array_map('intval', $teamMemberIds);
+                        $allowedUserIds = array_merge([(int)$userId], $teamMemberIds);
+                        $allowedUserIds = array_values(array_unique($allowedUserIds));
+                    } elseif ($roleName === 'Wireless Team Lead') {
+                        // Wireless Team Lead: can filter by peers
+                        $peerUserIds = RoleHelper::getPeerUserIds($roleName, $this->db);
+                        if (!is_array($peerUserIds)) {
+                            $peerUserIds = [];
+                        }
+                        $allowedUserIds = array_map('intval', $peerUserIds);
+                        if (empty($allowedUserIds)) {
+                            $allowedUserIds = [(int)$userId];
+                        } else {
+                            $allowedUserIds = array_values(array_unique($allowedUserIds));
+                        }
+                    } else {
+                        // Other Field roles: only themselves
+                        $allowedUserIds = [(int)$userId];
+                    }
+                    
+                    // Filter: only keep user IDs that are in the allowed list
+                    $assignedToUserIds = array_intersect($assignedToUserIds, $allowedUserIds);
+                } else {
+                    // Other roles: can only filter by themselves
+                    if (in_array((int)$userId, $assignedToUserIds)) {
+                        $assignedToUserIds = [(int)$userId];
+                    } else {
+                        $assignedToUserIds = []; // Invalid - no access
+                    }
+                }
+                
+                // Apply filter if we have valid user IDs
+                if (!empty($assignedToUserIds)) {
+                    if (count($assignedToUserIds) === 1) {
+                        // Single user - use = for better performance
+                        $sql .= " AND ce.smownerid = ?";
+                        $params[] = $assignedToUserIds[0];
+                    } else {
+                        // Multiple users - use IN clause
+                        $placeholders = implode(',', array_fill(0, count($assignedToUserIds), '?'));
+                        $sql .= " AND ce.smownerid IN ($placeholders)";
+                        $params = array_merge($params, $assignedToUserIds);
+                    }
+                } else {
+                    // No valid user IDs - return empty result
+                    $sql .= " AND 1 = 0";
+                }
+            }
         }
 
         if (!empty($filters['search'])) {
