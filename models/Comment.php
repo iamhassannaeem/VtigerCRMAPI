@@ -16,6 +16,7 @@ class Comment
     /**
      * Get comments for a ticket
      * Uses standard Vtiger structure: vtiger_modcomments + vtiger_crmentity
+     * All comments created via this API are stored as private/internal (is_private = 1).
      */
     public function getCommentsByTicketId($ticketId, $limit = null)
     {
@@ -60,8 +61,9 @@ class Comment
     /**
      * Add comment to ticket
      * Uses standard Vtiger structure: inserts into vtiger_crmentity then vtiger_modcomments
+     * All comments are stored as private/internal by default (is_private = 1).
      */
-    public function addComment($ticketId, $comment, $userId, $parentCommentId = 0, $isPrivate = 0)
+    public function addComment($ticketId, $comment, $userId, $parentCommentId = 0, $isPrivate = 1)
     {
         // Get current time in Pakistan timezone (Asia/Karachi)
         $pakistanTime = new DateTime('now', new DateTimeZone('Asia/Karachi'));
